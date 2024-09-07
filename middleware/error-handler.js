@@ -1,6 +1,8 @@
 const { StatusCodes } = require("http-status-codes");
+
 const errorHandlerMiddleware = (err, req, res, next) => {
   console.log("error is in error-handler middleware : ", err);
+
   let customError = {
     // set default
     statusCode: err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR,
@@ -21,6 +23,7 @@ const errorHandlerMiddleware = (err, req, res, next) => {
     customError.message = `No device is found with id ${extractedValue} check the device id or industry code`;
     customError.statusCode = 404;
   }
+
   if (err.code === "ER_BAD_FIELD_ERROR") {
     const match = err.sqlMessage.match(/Unknown column '([^']+)'/) || [];
     const columnName = match[1] || null;

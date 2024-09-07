@@ -98,7 +98,8 @@ const registerController = async (req, res) => {
 
 const changePasswordController = async (req, res) => {
   try {
-    const { email, oldPassword, newPassword } = req.body;
+    const email = req.query.email;
+    const { oldPassword, newPassword } = req.body;
 
     if (!email || !oldPassword || !newPassword) {
       return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Please provide email, oldPassword and newPassword" });

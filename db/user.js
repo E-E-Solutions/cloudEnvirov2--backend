@@ -30,4 +30,15 @@ module.exports = class Users {
   static changePassword(emailId, oldPassword, newPassword) {
     return db.execute("UPDATE user_ SET password = ? WHERE email = ? AND password = ?", [newPassword, emailId, oldPassword]);
   }
+
+  static async getProducts(emailId) {
+    console.log({ emailId });
+    const existingProducts = await db.execute("SELECT * FROM user_ WHERE email = ?", [emailId]);
+    // console.log({ existingProducts: existingProducts[0][0] });
+    return existingProducts[0][0].products_list;
+  }
+  static async addProduct(emailId, productsList) {
+    console.log({ emailId, productsList });
+    return db.execute("UPDATE user_ SET products_list = ? WHERE email = ?", [JSON.stringify(productsList), emailId]);
+  }
 };

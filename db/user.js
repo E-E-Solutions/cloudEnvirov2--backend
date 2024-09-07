@@ -11,10 +11,7 @@ module.exports = class Users {
   save() {
     return new Promise(async (resolve, reject) => {
       try {
-        const [rows] = await db.execute(
-          "INSERT INTO auth_person (emailId, password, name ) VALUES (?, ?, ?)",
-          [this.emailId, this.password, this.name]
-        );
+        const [rows] = await db.execute("INSERT INTO user_ (email, password, name ) VALUES (?, ?, ?)", [this.emailId, this.password, this.name]);
         resolve(rows);
       } catch (error) {
         reject(error);
@@ -23,10 +20,14 @@ module.exports = class Users {
   }
 
   static findOne(emailId) {
-    return db.execute("SELECT * FROM auth_person WHERE emailId = ?", [emailId]);
+    return db.execute("SELECT * FROM user_ WHERE email = ?", [emailId]);
   }
 
   static findAll() {
-    return db.execute("SELECT * FROM auth_person");
+    return db.execute("SELECT * FROM user_");
+  }
+
+  static changePassword(emailId, oldPassword, newPassword) {
+    return db.execute("UPDATE user_ SET password = ? WHERE email = ? AND password = ?", [newPassword, emailId, oldPassword]);
   }
 };

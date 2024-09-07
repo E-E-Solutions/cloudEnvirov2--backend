@@ -49,7 +49,7 @@ app.get("/testing", (req, res) => {
 });
 
 // Use the user routes for the specified path
-app.use("/app/user", userRoute);
+app.use("/api/v1/user", userRoute);
 
 // Use custom error handling middleware
 app.use(errorHandlerMiddleware);

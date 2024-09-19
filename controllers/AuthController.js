@@ -2,23 +2,35 @@
 const jwt = require("jsonwebtoken");
 const { StatusCodes } = require("http-status-codes");
 const bcrypt = require("bcryptjs");
+var postmark = require("postmark");
+const htmlTemplate = require("../template/html/otp-mail");
 
 // local imports
 const Users = require("../db/user");
 const CustomError = require("../errors/index");
 
+var client = new postmark.ServerClient(process.env.POSTMARK_API_KEY);
 // ======================================================== Login controller ===============================================================
 const loginController = async (req, res) => {
   try {
     // Extract email and password from request body
     const { email, password } = req.body;
-
     console.log({ email, password });
+
+    // Check if email and password are provided
+    if (!validateRequestBody(req.body, ["email", "password"])) {
+      return res.status(400).json({ success: false, message: "Request body should contain - email and password" });
+    }
+
+    // Check if email is valid
+    if (!validateEmail(email)) {
+      return res.status(400).json({ success: false, message: "Email is not valid" });
+    }
 
     // Retrieve user from the database
     const user = await Users.findOne(email);
-
     console.log({ user });
+
     // Check if user exist
     if (!user[0][0]) {
       return res.status(400).json({ success: false, message: "User does not exist!" });
@@ -31,14 +43,10 @@ const loginController = async (req, res) => {
     // );
 
     const isPasswordCorrect = user[0][0].password === password;
-
     console.log({ isPasswordCorrect });
-
     if (!isPasswordCorrect) {
       return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "Invalid Credentials" });
     }
-
-    console.log({ email: user[0][0].email, password: user[0][0].password });
 
     // Generate JWT token
     const token = jwt.sign(
@@ -70,7 +78,7 @@ const loginController = async (req, res) => {
   } catch (error) {
     // Handle errors
 
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: "Something went wrong" });
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: "Something went wrong | " + error });
   }
 };
 
@@ -81,7 +89,7 @@ const registerController = async (req, res) => {
     const { email, password, name } = req.body;
 
     if (!email || !password || !name) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Please provide email and password" });
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Please provide name, email and password" });
     }
 
     // Hash the password
@@ -131,4 +139,63 @@ const changePasswordController = async (req, res) => {
   }
 };
 
-module.exports = { loginController, registerController, changePasswordController };
+const sendOtpController = async (req, res) => {
+  try {
+    const email = req.query.email;
+    const response = await Users.generateOtp(email);
+
+    if (!response.success) {
+      return res.status(500).json({ success: false, message: "Something went wrong!" });
+    }
+
+    client.sendEmail({
+      From: "no-reply@enggenv.com",
+      To: email,
+      Subject: "Cloud Enviro email verification Code",
+      HtmlBody: htmlTemplate(
+        "Engineering and Environmental Solutions Pvt Ltd",
+        "Cloud Enviro",
+        "https://app.enggenv.com/public/elementRed.svg",
+        response?.otp
+      ),
+      TextBody: "",
+      MessageStream: "cloud-enviro-v2",
+    });
+
+    res.status(StatusCodes.CREATED).json({ success: true, message: "OTP sent successfully" });
+  } catch (error) {
+    console.log(error);
+    throw new CustomError.BadRequestError(error);
+  }
+};
+
+const verifyOtpController = async (req, res) => {
+  try {
+    const email = req.body.email;
+    const otp = req.body.otp;
+
+    const { success, message } = await Users.verifyOtp(email, otp);
+    console.log({ success, message });
+    if (success) {
+      return res.status(StatusCodes.OK).json({ success: true, message: "OTP verified successfully" });
+    }
+
+    res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: message });
+  } catch (er) {
+    console.log(er);
+    throw new CustomError.BadRequestError(er);
+  }
+};
+
+function validateEmail(email) {
+  if (/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/.test(email)) return true;
+  return false;
+}
+
+function validateRequestBody(keys, requiredParams) {
+  sortedKeys = Object.keys(keys).sort();
+  if (sortedKeys.toString() == requiredParams.toString()) return true;
+  return false;
+}
+
+module.exports = { loginController, registerController, changePasswordController, sendOtpController, verifyOtpController };

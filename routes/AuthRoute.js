@@ -4,7 +4,14 @@ const express = require("express"); // Import the express module
 const { authenticateUser, authorizePermissions } = require("../middleware/authentication");
 
 // Import controller functions for handling authentication routes
-const { loginController, registerController, changePasswordController } = require("../controllers/AuthController");
+const {
+  loginController,
+  registerController,
+  changePasswordController,
+  sendOtpController,
+  verifyOtpController,
+} = require("../controllers/AuthController");
+const { ValidateDeviceController } = require("../controllers/DeviceController");
 
 const router = express.Router(); // Create a new express router instance
 
@@ -12,6 +19,9 @@ const router = express.Router(); // Create a new express router instance
 router.post("/login", loginController);
 router.post("/register", registerController);
 router.patch("/changePassword", changePasswordController);
+router.post("/validateDevice", ValidateDeviceController);
+router.get("/sendOtp", sendOtpController);
+router.post("/verifyOtp", verifyOtpController);
 
 // Define a POST route for the register path
 // This route uses the authenticateUser middleware to ensure the user is authenticated

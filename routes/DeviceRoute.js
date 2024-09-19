@@ -1,14 +1,23 @@
 const express = require("express"); // Import the express module
 
-const { AddDeviceController, ValidateDeviceController } = require("../controllers/DeviceController");
+const {
+  AddDeviceController,
+  ValidateDeviceController,
+  UpdateAliasController,
+  GetDeviceInfoController,
+  DeleteDeviceController,
+} = require("../controllers/DeviceController");
 
 // Import controller functions for handling authentication routes
 
 const router = express.Router(); // Create a new express router instance
 
 // Define a POST route for the login path
+router.get("/", GetDeviceInfoController);
 router.patch("/addDevice", AddDeviceController);
+router.patch("/updateAlias", UpdateAliasController);
 router.post("/validateDevice", ValidateDeviceController);
+router.delete("/", DeleteDeviceController);
 
 // Define a POST route for the register path
 // This route uses the authenticateUser middleware to ensure the user is authenticated

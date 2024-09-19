@@ -17,6 +17,28 @@ class Device {
       }
     });
   }
+  static updateAlias(alias, deviceId) {
+    return new Promise((resolve, reject) => {
+      try {
+        const row = db.query("UPDATE id_create_info SET alias = ? WHERE device_id = ?", [alias, deviceId]);
+        resolve(row);
+      } catch (er) {
+        console.log(er);
+        reject(er);
+      }
+    });
+  }
+  static GetDeviceInfo(deviceId) {
+    return new Promise((resolve, reject) => {
+      try {
+        const row = db.query("SELECT * FROM id_create_info WHERE device_id = ?", [deviceId]);
+        resolve(row);
+      } catch (er) {
+        console.log(er);
+        reject(er);
+      }
+    });
+  }
 }
 
 module.exports = Device;

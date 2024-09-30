@@ -9,7 +9,8 @@ const {
   registerController,
   changePasswordController,
   sendOtpController,
-  verifyOtpController,
+  userExistsController,
+  forgetPasswordController,
 } = require("../controllers/AuthController");
 const { ValidateDeviceController } = require("../controllers/DeviceController");
 
@@ -17,11 +18,13 @@ const router = express.Router(); // Create a new express router instance
 
 // Define a POST route for the login path
 router.post("/login", loginController);
+router.get("/userExists", userExistsController);
 router.post("/register", registerController);
 router.patch("/changePassword", changePasswordController);
 router.post("/validateDevice", ValidateDeviceController);
 router.get("/sendOtp", sendOtpController);
-router.post("/verifyOtp", verifyOtpController);
+router.patch("/forgetPassword", forgetPasswordController);
+// router.post("/verifyOtp", verifyOtpController);
 
 // Define a POST route for the register path
 // This route uses the authenticateUser middleware to ensure the user is authenticated

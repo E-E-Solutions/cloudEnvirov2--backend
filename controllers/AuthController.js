@@ -6,8 +6,9 @@ var postmark = require("postmark");
 const htmlTemplate = require("../template/html/otp-mail");
 
 // local imports
-const Users = require("../db/user");
+const Users = require("../db/User");
 const CustomError = require("../errors/index");
+const { GetDeviceInfo } = require("../db/Device");
 
 var client = new postmark.ServerClient(process.env.POSTMARK_API_KEY);
 // ======================================================== Login controller ===============================================================
@@ -52,7 +53,7 @@ const loginController = async (req, res) => {
     const token = jwt.sign(
       { email: user[0][0].email, password: user[0][0].password }, // Customize payload as needed
       process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "12h" }
+      { expiresIn: "1h" }
     );
 
     // Set the token as a cookie in the response
@@ -62,7 +63,16 @@ const loginController = async (req, res) => {
     });
 
     console.log({ productsList: user[0][0].products_list });
-    const productsList = user[0][0].products_list || "[]";
+    const deviceIds = JSON.parse(user[0][0].products_list || "[]");
+    console.log({ deviceIds });
+
+    const productsList = await deviceIds.reduce(async (acc, deviceId) => {
+      const [response] = await GetDeviceInfo(deviceId);
+      const alias = (await response[0]?.alias) || deviceId;
+      acc = [...(await acc), { deviceId, alias }];
+      return acc;
+    }, []);
+
     console.log({ productsList });
 
     // Send success response
@@ -70,7 +80,7 @@ const loginController = async (req, res) => {
       success: true,
       message: "Login successfully",
       token: token,
-      productsList: JSON.parse(productsList),
+      productsList,
       address: user[0][0].address,
       firmName: user[0][0].firm_name,
       contactNo: user[0][0].contact,
@@ -86,18 +96,90 @@ const loginController = async (req, res) => {
 
 const registerController = async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { firmName, password, email, productsList, contactNo, address, otp } = req.body;
+    console.log({ reqBody: req.body });
+    if (!email || !password || !firmName || !productsList || !contactNo || !address || !otp) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Please provide all the details" });
+    }
 
-    if (!email || !password || !name) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Please provide name, email and password" });
+    if (!validateEmail(email)) {
+      return res.status(400).json({ success: false, message: "Email is not valid" });
+    }
+
+    const user = await Users.findOne(email);
+    console.log({ user });
+
+    // Check if user exist
+    if (user[0][0]) {
+      return res.status(400).json({ success: false, message: "User already exist!" });
+    }
+
+    const { success, message } = await Users.verifyOtp(email, otp);
+    console.log({ success, message });
+    if (success) {
+      const user = new Users(firmName, password, email, productsList, contactNo, address);
+      user.save();
+
+      // if (response[0]?.affectedRows > 0) {
+      res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully" });
+      // } else {
+      //   res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Something went wrong!" });
+      // }
+    } else {
+      res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: message });
     }
 
     // Hash the password
     // const salt = await bcrypt.genSalt(10);
     // const hashedPassword = await bcrypt.hash(password, salt);
-    const user = new Users(name, password, email);
-    await user.save();
-    res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully" });
+  } catch (error) {
+    console.log({ error });
+    throw new CustomError.BadRequestError(error);
+  }
+};
+
+const forgetPasswordController = async (req, res) => {
+  try {
+    const { email } = req.query;
+    const { password, otp } = req.body;
+    console.log({ reqBody: req.body });
+    if (!email || !password || !otp) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Please provide all the details" });
+    }
+
+    if (!validateEmail(email)) {
+      return res.status(400).json({ success: false, message: "Email is not valid" });
+    }
+
+    const user = await Users.findOne(email);
+    console.log({ user });
+
+    // Check if user exist
+    if (!user[0][0]) {
+      return res.status(400).json({ success: false, message: "User doesn't exist!" });
+    }
+
+    const { success, message } = await Users.verifyOtp(email, otp);
+    console.log({ success, message });
+    if (success) {
+      const [response] = await Users.forgetPassword(email, password);
+      console.log(response);
+      if (response.affectedRows > 0) {
+        return res.status(StatusCodes.OK).json({ success: true, message: "Password updated successfully" });
+      }
+
+      // if (response[0]?.affectedRows > 0) {
+      // res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully" });
+      // } else {
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Something went wrong!" });
+      // }
+    } else {
+      res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: message });
+    }
+
+    // Hash the password
+    // const salt = await bcrypt.genSalt(10);
+    // const hashedPassword = await bcrypt.hash(password, salt);
   } catch (error) {
     console.log({ error });
     throw new CustomError.BadRequestError(error);
@@ -169,18 +251,32 @@ const sendOtpController = async (req, res) => {
   }
 };
 
-const verifyOtpController = async (req, res) => {
+// const verifyOtpController = async (req, res) => {
+//   try {
+//     const email = req.body.email;
+//     const otp = req.body.otp;
+
+//     const { success, message } = await Users.verifyOtp(email, otp);
+//     console.log({ success, message });
+//     if (success) {
+//       return res.status(StatusCodes.OK).json({ success: true, message: "OTP verified successfully" });
+//     }
+
+//     res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: message });
+//   } catch (er) {
+//     console.log(er);
+//     throw new CustomError.BadRequestError(er);
+//   }
+// };
+
+const userExistsController = async (req, res) => {
   try {
-    const email = req.body.email;
-    const otp = req.body.otp;
-
-    const { success, message } = await Users.verifyOtp(email, otp);
-    console.log({ success, message });
-    if (success) {
-      return res.status(StatusCodes.OK).json({ success: true, message: "OTP verified successfully" });
+    const email = req.query.email;
+    const user = await Users.findOne(email);
+    if (user[0][0]) {
+      return res.status(StatusCodes.OK).json({ success: false, message: "User already exists" });
     }
-
-    res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: message });
+    res.status(StatusCodes.OK).json({ success: true, message: "User does not exist" });
   } catch (er) {
     console.log(er);
     throw new CustomError.BadRequestError(er);
@@ -198,4 +294,4 @@ function validateRequestBody(keys, requiredParams) {
   return false;
 }
 
-module.exports = { loginController, registerController, changePasswordController, sendOtpController, verifyOtpController };
+module.exports = { userExistsController, loginController, registerController, changePasswordController, sendOtpController, forgetPasswordController };

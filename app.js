@@ -28,6 +28,7 @@ const notFoundMiddleware = require("./middleware/not-found");
 // Import the user routes
 const userRoute = require("./routes/AuthRoute");
 const deviceRoute = require("./routes/DeviceRoute");
+const dataRoute = require("./routes/DataRoute");
 const { authenticateUser } = require("./middleware/authentication");
 
 // Use cors middleware to enable CORS with various options
@@ -53,6 +54,7 @@ app.get("/testing", (req, res) => {
 // Use the user routes for the specified path
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/device", authenticateUser, deviceRoute);
+app.use("/api/v1/data", authenticateUser, dataRoute);
 
 // Use custom error handling middleware
 app.use(errorHandlerMiddleware);

@@ -1,4 +1,4 @@
-const Users = require("../db/user");
+const Users = require("../db/User");
 const Device = require("../db/Device");
 
 const AddDeviceController = async (req, res) => {

@@ -4,6 +4,7 @@ const { StatusCodes } = require("http-status-codes");
 const bcrypt = require("bcryptjs");
 var postmark = require("postmark");
 const htmlTemplate = require("../template/html/otp-mail");
+const {validateRequestBody,validateEmail }=require("../utils/common")
 
 // local imports
 const Users = require("../db/User");
@@ -283,15 +284,6 @@ const userExistsController = async (req, res) => {
   }
 };
 
-function validateEmail(email) {
-  if (/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/.test(email)) return true;
-  return false;
-}
 
-function validateRequestBody(keys, requiredParams) {
-  sortedKeys = Object.keys(keys).sort();
-  if (sortedKeys.toString() == requiredParams.toString()) return true;
-  return false;
-}
 
 module.exports = { userExistsController, loginController, registerController, changePasswordController, sendOtpController, forgetPasswordController };

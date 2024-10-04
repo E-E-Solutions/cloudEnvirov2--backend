@@ -64,26 +64,18 @@ module.exports = class Users {
   }
 
   static async getProducts(emailId) {
-    console.log({ emailId });
     const existingProducts = await db.execute("SELECT * FROM user_ WHERE email = ?", [emailId]);
-    // console.log({ existingProducts: existingProducts[0][0] });
     return existingProducts[0][0].products_list;
   }
   static async addProduct(emailId, productsList) {
-    console.log({ emailId, productsList });
     return db.execute("UPDATE user_ SET products_list = ? WHERE email = ?", [JSON.stringify(productsList), emailId]);
   }
 
   static async verifyOtp(emailId, otp) {
     const response = await db.execute("SELECT * FROM `cloud_enviro_otp` WHERE email = ?", [emailId]);
-    console.log({ response: response[0][0] });
-
     const { expires_at, otp: existingOtp } = response[0][0];
-    console.log({ expires_at, existingOtp });
     const expiringTime = new Date(expires_at).getTime();
     const currentTime = Date.now();
-    console.log({ expiringTime, currentTime });
-
     if (currentTime > expiringTime) {
       // Delete data in cloud_enviro_otp if it otp expires !
       await db.execute("DELETE FROM `cloud_enviro_otp` WHERE `email` = ?;", [emailId]);
@@ -115,12 +107,7 @@ module.exports = class Users {
       dateTime.getMinutes() +
       ":" +
       dateTime.getSeconds();
-    console.log(expiresAt);
-
     const emailExists = await db.execute("SELECT * FROM `cloud_enviro_otp` WHERE email = ?", [emailId]);
-
-    console.log({ emailExists: emailExists[0][0] });
-
     if (emailExists[0][0]) {
       const [response] = await db.execute("UPDATE `cloud_enviro_otp` SET `expires_at`= ? , `otp`= ? WHERE email= ?", [expiresAt, otp, emailId]);
 

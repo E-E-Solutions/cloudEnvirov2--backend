@@ -39,6 +39,18 @@ class Device {
       }
     });
   }
+
+  static GetDeviceCoordinates(deviceId){
+    return new Promise((resolve, reject) => {
+      try {
+        const row = db.query("SELECT `dev_location` FROM id_create_info WHERE device_id = ?", [deviceId]);
+        resolve(row);
+      } catch (er) {
+        console.log(er);
+        reject(er);
+      }
+    });
+  }
 }
 
 module.exports = Device;

@@ -14,7 +14,7 @@ require("dotenv").config();
 const app = express();
 
 // Define the port on which the server will listen
-const port = 5000;
+const port = 5050;
 
 // Import body-parser to parse incoming request bodies
 const bodyParser = require("body-parser");
@@ -29,6 +29,7 @@ const notFoundMiddleware = require("./middleware/not-found");
 const userRoute = require("./routes/AuthRoute");
 const deviceRoute = require("./routes/DeviceRoute");
 const dataRoute = require("./routes/DataRoute");
+const settingRoute = require("./routes/SettingRoute");
 const { authenticateUser } = require("./middleware/authentication");
 
 // Use cors middleware to enable CORS with various options
@@ -55,6 +56,7 @@ app.get("/testing", (req, res) => {
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/device", authenticateUser, deviceRoute);
 app.use("/api/v1/data", authenticateUser, dataRoute);
+app.use("/api/v1/setting", authenticateUser, settingRoute);
 
 // Use custom error handling middleware
 app.use(errorHandlerMiddleware);

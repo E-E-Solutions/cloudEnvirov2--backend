@@ -42,11 +42,20 @@ const SetMapSettings=async(req,res)=>{
     }
 
 }
+
 const SetParaInfo=async(req,res)=>{
     try{
         const { email } = req.user;
         const {paraInfo}=req.body;
-        const settings= await Settings.setParaSettings(JSON.stringify(paraInfo),email);
+        const oldSettings=new Settings(email);
+        const [oldSettingsData]=await oldSettings.getSettings();
+        // Check if oldSettingsData is valid
+        if (!oldSettingsData || oldSettingsData.length === 0) {
+            return res.status(404).json({ success: "false", message: "Settings not found" });
+        }
+        const oldParaInfo=JSON.parse(oldSettingsData?.[0]?.para_info ||  "{}");
+        const data=JSON.stringify({ ...oldParaInfo, ...paraInfo });
+        const settings= await Settings.setParaSettings(data,email);
         if(settings[0]?.affectedRows>0){
             return res.status(200).json({ success: "true", message: "Para Info updated successfully"});
         }

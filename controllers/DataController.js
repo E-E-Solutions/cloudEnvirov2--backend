@@ -34,13 +34,16 @@ const GetLatestData = async (req, res) => {
     // return;
     const data = latestDataObj?.latestData[0];
     const dailyAverages=latestDataObj?.dailyAverages[0]
-    const ts_server = data?.ts_server;
+    const ts_server = data?.ts_server || data?.ts || data?.ts_client ||`${data?.date} ${data?.time}` ;
     const ts_client = data?.ts_client;
 
     delete data._id;
     delete data.lg;
     delete data.lt;
     delete data.bv;
+    delete data.lon;
+    delete data.lat;
+    delete data.batVolt;
     delete data.ts_client;
     delete data.ts_server;
 
@@ -108,7 +111,7 @@ const GetLatestData = async (req, res) => {
       success: true,
       data: LatestData,
       time: new Date(ts_server).getTime(),
-      dataAvailabilityYears: years,
+      dataAvailabilityYears: years.sort((a,b)=>b-a),
       status: getStatus(ts_server),
     });
     // res.status(500).json({success:false,message:"Something Went wrong"})
@@ -127,7 +130,7 @@ const GetDeviceStatusAndLocation = async (req, res) => {
     products = products === "" ? "[]" : products;
 
     let productsList = JSON.parse(products);
-    console.log({ productsList });
+    // console.log({ productsList });
 
     if (productsList.length === 0) {
       return res.status(401).json({
@@ -146,7 +149,7 @@ const GetDeviceStatusAndLocation = async (req, res) => {
       return obj;
     }, Promise.resolve([]));
 
-    console.log({ result: JSON.stringify(result) });
+    // console.log({ result: JSON.stringify(result) });
 
     // Then, get the location and address for each device in parallel using Promise.all
     returnableObj = await Promise.all(
@@ -171,13 +174,13 @@ const GetDeviceStatusAndLocation = async (req, res) => {
     // console.log({settings})
     if (settings[0]?.map_settings) {
       const settingsList = JSON.parse(settings[0]?.map_settings);
-      console.log({ settingsList });
+      // console.log({ settingsList });
       returnableObj = { mapData: returnableObj, mapSettings: settingsList };
     } else {
       returnableObj = { mapData: returnableObj };
     }
 
-    console.log({ returnableObj: JSON.stringify(returnableObj) });
+    // console.log({ returnableObj: JSON.stringify(returnableObj) });
 
     // Respond with the final result
     res.status(200).json({ success: true, data: returnableObj });
@@ -287,7 +290,7 @@ const GetLastDataByDuration=async(req,res)=>{
     const { deviceId, duration} = req.query;
 
     let data = await Data.getLastDataByDuration(deviceId,duration);
-    console.log({ data });
+    // console.log({ data });
 
     const avgData=data?.avgData.map(obj=>{
       delete obj?.day;
@@ -307,10 +310,52 @@ const GetLastDataByDuration=async(req,res)=>{
   }
 }
 
+
+const GetLastAvgDataByCustomDuration=async(req,res)=>{
+  try {
+    const { email } = req.user;
+    const {from,to,average}=req.body;
+    const {deviceId}=req.query;
+
+
+    if (!validateRequestBody(req.body, ["from", "to","average"].sort())) {
+      return res.status(400).json({
+        success: false,
+        message: "Request body should contain - from, to and average",
+      });
+    }
+
+    
+
+    let result = await Data.getLastAvgDataByCustomDuration(deviceId,from,to,average);
+    // console.log({ data });
+
+    const customReport=result?.data.map(obj=>{
+      delete obj?.day;
+      if(obj?.avg_lg) delete obj?.avg_lg
+      if(obj?.avg_lt) delete obj?.avg_lt
+      if(obj?.avg_bv) delete obj?.avg_bv
+      if(obj?.lg) delete obj?.lg
+      if(obj?.lt) delete obj?.lt
+      if(obj?.bv) delete obj?.bv
+      return obj;
+    })
+  
+    res.status(200).json({success:true, data:customReport,deviceId})
+
+
+  }
+  catch (er) {
+    console.log(er)
+    res.status(500).send({ success: false, message: "Internal Server Error" });
+  }
+}
+
 module.exports = {
   GetLatestData,
   GetDeviceStatusAndLocation,
   GetDataPointsPerYear,
   GetLastAvgDataByDays,
-  GetLastDataByDuration
+  GetLastDataByDuration,
+  GetLastAvgDataByCustomDuration
 };

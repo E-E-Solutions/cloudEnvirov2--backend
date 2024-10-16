@@ -1,5 +1,7 @@
 const Users = require("../db/User");
 const Device = require("../db/Device");
+const Data =require("../db/Data")
+const {getStatus, validateRequestBody}=require("../utils/common")
 
 const AddDeviceController = async (req, res) => {
   try {
@@ -37,9 +39,10 @@ const AddDeviceController = async (req, res) => {
     const products = [...existingProducts, deviceId];
     console.log({ products });
     const addProductResult = await Users.addProduct(email, products);
+    console.log({ addProductResult });
     console.log(addProductResult[0].affectedRows);
     if (addProductResult[0].affectedRows > 0) {
-      return res.status(200).json({ success: true, message: "Device added successfully" });
+      return res.status(200).json({ success: true, message: "Device added successfully", productsList:products });
     }
 
     // res.status(200).json({ message: "Device already exists" });
@@ -67,13 +70,23 @@ const ValidateDeviceController = async (req, res) => {
 };
 const UpdateAliasController = async (req, res) => {
   try {
-    const deviceId = req.query.deviceId;
+    const {deviceId} = req.query;
     const { alias } = req.body;
     const { email } = req.user;
+    console.log(req.body)
 
-    const fetchUserDetails = await Users.findOne(email);
+    console.log({email,alias,deviceId})
+    if (!validateRequestBody(req.body, ["alias"].sort())) {
+      return res.status(400).json({
+        success: false,
+        message: "Request body should contain - alias",
+      });
+    }
 
-    if (!fetchUserDetails[0][0].products_list.includes(deviceId)) {
+    const [fetchUserDetails] = await Users.findOne(email);
+    console.log({fetchUserDetails:fetchUserDetails[0]})
+
+    if (!fetchUserDetails[0].products_list.includes(deviceId)) {
       return res.status(401).json({ success: false, message: "This device is not in your device list, So you cannot Update its Alias" });
     }
 
@@ -86,7 +99,45 @@ const UpdateAliasController = async (req, res) => {
     res.status(200).json({ success: true, message: "Alias Updated Successfully!" });
   } catch (er) {
     console.log(er);
-    res.status(500).json({ success: false, message: er });
+    res.status(500).json({ success: false, message: "Internal Server Error | "+er });
+  }
+};
+
+const UpdateLocationController = async (req, res) => {
+  try {
+    const {deviceId} = req.query;
+    const { address,  latitude, longitude } = req.body;
+    const { email } = req.user;
+    console.log(req.body)
+
+    console.log({email,address,  latitude, longitude,deviceId})
+
+    if (!validateRequestBody(req.body, ["latitude", "longitude","address"].sort())) {
+      return res.status(400).json({
+        success: false,
+        message: "Request body should contain - latitude, longitude and address",
+      });
+    }
+
+    const [fetchUserDetails] = await Users.findOne(email);
+    console.log({fetchUserDetails:fetchUserDetails[0]})
+
+    if (!fetchUserDetails[0].products_list.includes(deviceId)) {
+      return res.status(401).json({ success: false, message: "This device is not in your device list, So you cannot Update its Location" });
+    }
+
+    const location=`${longitude};${latitude};${address}`
+
+    const result = await Device.updateLocation(location, deviceId);
+    console.log({ result: result[0] });
+    if (result[0].affectedRows === 0) {
+      return res.status(501).json({ success: false, message: "Location not Updated!" });
+    }
+
+    res.status(200).json({ success: true, message: "Location Updated Successfully!" });
+  } catch (er) {
+    console.log(er);
+    res.status(500).json({ success: false, message: "Internal Server Error | "+er });
   }
 };
 
@@ -104,6 +155,77 @@ const GetDeviceInfoController = async (req, res) => {
     res.status(500).json({ success: false, message: "Something went wrong | " + er });
   }
 };
+
+
+const GetUserDevicesInfoController=async(req,res)=>{
+  try {
+    const { email } = req.user;
+
+    let returnableObj = [];
+    let products = await Users.getProducts(email);
+    products = products === "" ? "[]" : products;
+
+    let productsList = JSON.parse(products);
+    console.log({ productsList });
+
+    if (productsList.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: "No device found in the products list.",
+      });
+    }
+
+    // First, get the status for each device
+    const result = await productsList.reduce(async (acc, deviceId) => {
+      let obj = await acc;
+      const DataObj = new Data(deviceId);
+      let data = await DataObj.getLatestData();
+      const ts_server = data?.latestData?.[0]?.ts_server;
+      obj = [...obj, { [deviceId]: { status: getStatus(ts_server) } }];
+      return obj;
+    }, Promise.resolve([]));
+
+    console.log({ result: JSON.stringify(result) });
+
+    // Then, get the location and address for each device in parallel using Promise.all
+    returnableObj = await Promise.all(
+      result.map(async (data) => {
+        const [deviceId, objValue] = Object.entries(data)[0]; // Get deviceId and its corresponding value
+
+        // Get location and address for the device
+        const [deviceInfo] = await Device.GetDeviceInfo(deviceId);
+
+
+        console.log({deviceInfo:deviceInfo[0]});
+
+        const {type:deviceType,sno,created_on,alias}=deviceInfo[0];
+
+        // return;
+
+        const [long, lat, address] =
+        deviceInfo?.[0]?.dev_location.split(";");
+
+        // Attach location info to the device's status object
+        objValue.deviceId = deviceId;
+        objValue.serialNo=sno;
+        objValue.type=deviceType;
+        objValue.createdOn=created_on;
+        objValue.alias=alias;
+        objValue.location = [lat, long];
+        objValue.address = address;
+        return { ...objValue };
+      })
+    );
+
+    
+
+    // Respond with the final result
+    res.status(200).json({ success: true, data: returnableObj });
+  }catch(er){
+    console.log(er);
+    res.status(500).json({ success: false, message: "Something went wrong | "+er})
+  }
+}
 
 const DeleteDeviceController = async (req, res) => {
   try {
@@ -146,4 +268,4 @@ const DeleteDeviceController = async (req, res) => {
   }
 };
 
-module.exports = { AddDeviceController, ValidateDeviceController, UpdateAliasController, GetDeviceInfoController, DeleteDeviceController };
+module.exports = { AddDeviceController, ValidateDeviceController, UpdateAliasController,UpdateLocationController, GetDeviceInfoController, DeleteDeviceController,GetUserDevicesInfoController };

@@ -28,6 +28,17 @@ class Device {
       }
     });
   }
+  static updateLocation(location, deviceId) {
+    return new Promise((resolve, reject) => {
+      try {
+        const row = db.query("UPDATE id_create_info SET dev_location = ? WHERE device_id = ?", [location, deviceId]);
+        resolve(row);
+      } catch (er) {
+        console.log(er);
+        reject(er);
+      }
+    });
+  }
   static GetDeviceInfo(deviceId) {
     return new Promise((resolve, reject) => {
       try {

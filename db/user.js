@@ -67,9 +67,42 @@ module.exports = class Users {
     const existingProducts = await db.execute("SELECT * FROM user_ WHERE email = ?", [emailId]);
     return existingProducts[0][0].products_list;
   }
+
   static async addProduct(emailId, productsList) {
     return db.execute("UPDATE user_ SET products_list = ? WHERE email = ?", [JSON.stringify(productsList), emailId]);
   }
+  static async updateFirmInfo(emailId, firmName, firmAddress, contactNo) {
+    let query = "UPDATE user_ SET";
+    const params = [];
+    const fields = [];
+  
+    if (firmName !== undefined && firmName !== null) {
+      fields.push(" firm_name = ?");
+      params.push(firmName);
+    }
+    
+    if (firmAddress !== undefined && firmAddress !== null) {
+      fields.push(" address = ?");
+      params.push(firmAddress);
+    }
+    
+    if (contactNo !== undefined && contactNo !== null) {
+      fields.push(" contact = ?");
+      params.push(contactNo);
+    }
+    
+    // Add WHERE clause if there are fields to update
+    if (fields.length > 0) {
+      query += fields.join(",") + " WHERE email = ?";
+      params.push(emailId);
+      
+      return db.execute(query, params);
+    } else {
+      // Nothing to update
+      return Promise.resolve({ message: "No fields to update" });
+    }
+  }
+  
 
   static async verifyOtp(emailId, otp) {
     const response = await db.execute("SELECT * FROM `cloud_enviro_otp` WHERE email = ?", [emailId]);

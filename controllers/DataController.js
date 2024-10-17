@@ -33,8 +33,12 @@ const GetLatestData = async (req, res) => {
 
     // return;
     const data = latestDataObj?.latestData[0];
-    const dailyAverages=latestDataObj?.dailyAverages[0]
-    const ts_server = data?.ts_server || data?.ts || data?.ts_client ||`${data?.date} ${data?.time}` ;
+    const dailyAverages = latestDataObj?.dailyAverages[0];
+    const ts_server =
+      data?.ts_server ||
+      data?.ts ||
+      data?.ts_client ||
+      `${data?.date} ${data?.time}`;
     const ts_client = data?.ts_client;
 
     delete data._id;
@@ -69,7 +73,7 @@ const GetLatestData = async (req, res) => {
               maximum: deviceSettings?.[key]?.maximum,
               threshold: deviceSettings?.[key]?.threshold,
               value: value,
-              average:Number(dailyAverages[`avg_${key}`]).toFixed(0)
+              average: Number(dailyAverages[`avg_${key}`]).toFixed(0),
             };
 
             console.log(dataObj);
@@ -102,7 +106,7 @@ const GetLatestData = async (req, res) => {
     let [dataObj] = await Data.getDataAvailabilityYears(deviceId);
     console.log({ dataObj });
     // dataObj = dataObj[0];
-    let years = dataObj?.map(obj=>obj.year);
+    let years = dataObj?.map((obj) => obj.year);
     console.log({ years });
 
     console.log({ LatestData });
@@ -111,7 +115,7 @@ const GetLatestData = async (req, res) => {
       success: true,
       data: LatestData,
       time: new Date(ts_server).getTime(),
-      dataAvailabilityYears: years.sort((a,b)=>b-a),
+      dataAvailabilityYears: years.sort((a, b) => b - a),
       status: getStatus(ts_server),
     });
     // res.status(500).json({success:false,message:"Something Went wrong"})
@@ -233,7 +237,10 @@ const GetDataPointsPerYear = async (req, res) => {
       success: "true",
       data: {
         maxValue,
-        dataPoints: data?.map(point=>[new Date(point?.date).toISOString().split("T")[0],point?.data_points]),
+        dataPoints: data?.map((point) => [
+          new Date(point?.date).toISOString().split("T")[0],
+          point?.data_points,
+        ]),
       },
     });
   } catch (er) {
@@ -242,44 +249,41 @@ const GetDataPointsPerYear = async (req, res) => {
   }
 };
 
-
-const GetLastAvgDataByDays=async(req,res)=>{
+const GetLastAvgDataByDays = async (req, res) => {
   try {
     const { email } = req.user;
 
-    if (!validateRequestBody(req.query, ["deviceId", "days", "average"].sort())) {
+    if (
+      !validateRequestBody(req.query, ["deviceId", "days", "average"].sort())
+    ) {
       return res.status(400).json({
         success: false,
         message: "Request body should contain - deviceId, days and average",
       });
     }
-    const { deviceId, days , average} = req.query;
+    const { deviceId, days, average } = req.query;
 
-    let data = await Data.getLastAvgDataByDays(deviceId,days,average);
+    let data = await Data.getLastAvgDataByDays(deviceId, days, average);
     console.log({ data });
 
-    const avgData=data?.avgData.map(obj=>{
+    const avgData = data?.avgData.map((obj) => {
       delete obj?.day;
-      if(obj?.avg_lg) delete obj?.avg_lg
-      if(obj?.avg_lt) delete obj?.avg_lt
-      if(obj?.avg_bv) delete obj?.avg_bv
+      if (obj?.avg_lg) delete obj?.avg_lg;
+      if (obj?.avg_lt) delete obj?.avg_lt;
+      if (obj?.avg_bv) delete obj?.avg_bv;
       return obj;
-    })
-  
-    res.status(200).json({success:true, data:avgData, deviceId})
+    });
 
-
-  }
-  catch (er) {
-    console.log(er)
+    res.status(200).json({ success: true, data: avgData, deviceId });
+  } catch (er) {
+    console.log(er);
     res.status(500).send({ success: false, message: "Internal Server Error" });
   }
-}
+};
 
-const GetLastDataByDuration=async(req,res)=>{
+const GetLastDataByDuration = async (req, res) => {
   try {
     const { email } = req.user;
-
 
     if (!validateRequestBody(req.query, ["deviceId", "duration"].sort())) {
       return res.status(400).json({
@@ -287,69 +291,79 @@ const GetLastDataByDuration=async(req,res)=>{
         message: "Request body should contain - deviceId, days and average",
       });
     }
-    const { deviceId, duration} = req.query;
+    const { deviceId, duration } = req.query;
 
-    let data = await Data.getLastDataByDuration(deviceId,duration);
+    let result = await Data.getLastDataByDuration(deviceId, duration);
     // console.log({ data });
 
-    const avgData=data?.avgData.map(obj=>{
+    const avgData = result?.data.map((obj) => {
       delete obj?.day;
-      if(obj?.avg_lg) delete obj?.avg_lg
-      if(obj?.avg_lt) delete obj?.avg_lt
-      if(obj?.avg_bv) delete obj?.avg_bv
+      if (obj?.avg_lg) delete obj?.avg_lg;
+      if (obj?.avg_lt) delete obj?.avg_lt;
+      if (obj?.avg_bv) delete obj?.avg_bv;
       return obj;
-    })
-  
-    res.status(200).json({success:true, data:avgData,deviceId})
+    });
 
-
-  }
-  catch (er) {
-    console.log(er)
+    res.status(200).json({ success: true, data: avgData, deviceId });
+  } catch (er) {
+    console.log(er);
     res.status(500).send({ success: false, message: "Internal Server Error" });
   }
-}
+};
 
-
-const GetLastAvgDataByCustomDuration=async(req,res)=>{
+const GetLastAvgDataByCustomDuration = async (req, res) => {
   try {
     const { email } = req.user;
-    const {from,to,average}=req.body;
-    const {deviceId}=req.query;
+    const { from, to, average, duration } = req.body;
+    const { deviceId } = req.query;
+    let result = null;
 
+    console.log({body:req.body})
 
-    if (!validateRequestBody(req.body, ["from", "to","average"].sort())) {
+    if (
+      !(validateRequestBody(req.body, ["from", "to", "average"].sort()) ||
+      validateRequestBody(req.body, ["duration"].sort()))
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Request body should contain - from, to and average",
+        message:
+          "Request body should contain - (from, to and average) or (duration)",
       });
     }
 
-    
+    if (duration) {
+      console.log("if")
+      result = await Data.getLastDataByDuration(deviceId, duration);
+    } else {
+      console.log("else");
+      
+      result = await Data.getLastAvgDataByCustomDuration(
+        deviceId,
+        from,
+        to,
+        average
+      );
+    }
 
-    let result = await Data.getLastAvgDataByCustomDuration(deviceId,from,to,average);
-    // console.log({ data });
+    console.log({ result });
 
-    const customReport=result?.data.map(obj=>{
+    const customReport = await result?.data.map((obj) => {
       delete obj?.day;
-      if(obj?.avg_lg) delete obj?.avg_lg
-      if(obj?.avg_lt) delete obj?.avg_lt
-      if(obj?.avg_bv) delete obj?.avg_bv
-      if(obj?.lg) delete obj?.lg
-      if(obj?.lt) delete obj?.lt
-      if(obj?.bv) delete obj?.bv
+      if (obj?.avg_lg) delete obj?.avg_lg;
+      if (obj?.avg_lt) delete obj?.avg_lt;
+      if (obj?.avg_bv) delete obj?.avg_bv;
+      if (obj?.lg) delete obj?.lg;
+      if (obj?.lt) delete obj?.lt;
+      if (obj?.bv) delete obj?.bv;
       return obj;
-    })
-  
-    res.status(200).json({success:true, data:customReport,deviceId})
+    });
 
-
-  }
-  catch (er) {
-    console.log(er)
+    res.status(200).json({ success: true, data: customReport, deviceId });
+  } catch (er) {
+    console.log(er);
     res.status(500).send({ success: false, message: "Internal Server Error" });
   }
-}
+};
 
 module.exports = {
   GetLatestData,
@@ -357,5 +371,5 @@ module.exports = {
   GetDataPointsPerYear,
   GetLastAvgDataByDays,
   GetLastDataByDuration,
-  GetLastAvgDataByCustomDuration
+  GetLastAvgDataByCustomDuration,
 };

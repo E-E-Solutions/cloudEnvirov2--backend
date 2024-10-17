@@ -231,7 +231,7 @@ class Data {
                 Number(duration)-1,
               ]);
               // console.log({ avgValue: avgResult[0] });
-              resolve({ avgData: avgResult[0] });
+              resolve({ data: avgResult[0] });
             }
             else if(duration.includes("month")){
               duration=duration.split("_")[0]
@@ -243,11 +243,11 @@ class Data {
                 duration,
               ]);
               // console.log({ avgValue: avgResult[0] });
-              resolve({ avgData: avgResult[0] });
+              resolve({ data: avgResult[0] });
             }
           } else {
             // No numeric columns found, return just the latest row
-            resolve({ avgData: {} });
+            resolve({ data: {} });
           }
         } else {
           resolve(null); // No data found

@@ -189,7 +189,7 @@ const forgetPasswordController = async (req, res) => {
 
 const changePasswordController = async (req, res) => {
   try {
-    const email = req.query.email;
+    const email = req.user.email;
     const { oldPassword, newPassword } = req.body;
 
     if (!email || !oldPassword || !newPassword) {
@@ -216,6 +216,49 @@ const changePasswordController = async (req, res) => {
     }
 
     res.status(200).json({ success: true, message: "User Password Updated Successfully" });
+  } catch (error) {
+    console.log(error);
+    throw new CustomError.BadRequestError(error);
+  }
+};
+
+const updateFirmInfoController = async (req, res) => {
+  try {
+    const email = req.user.email;
+    const { firmName, firmAddress, contactNo } = req.body;
+
+    console.log({email, firmName, firmAddress, contactNo})
+
+    // if(!validateRequestBody(req.body,["firmName","firmAddress","contactNo"].sort())){
+    //   return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Please provide  firmName, contactNo and firmAddress" });
+    // }
+
+    const user = await Users.findOne(email);
+
+    console.log({ user: user[0][0] });
+    // Check if user exist
+    if (!user[0][0]) {
+      return res.status(400).json({ success: false, message: "User does not exist!" });
+    }
+
+    // Hash the password
+    // const salt = await bcrypt.genSalt(10);
+    // const hashedPassword = await bcrypt.hash(password, salt);
+    const updateFirmInfo = await Users.updateFirmInfo(email, firmName, firmAddress, contactNo);
+
+    console.log({ updateFirmInfo, affectedRows: updateFirmInfo[0].affectedRows });
+
+    if (updateFirmInfo[0].affectedRows === 0) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Can't Update Firm Info!" });
+    }
+
+    const updatedUser = await Users.findOne(email);
+
+    console.log({ user: updatedUser[0][0] });
+
+    const {firm_name,address,contact}=updatedUser[0][0];
+
+    res.status(200).json({ success: true, message: "User Firm Info Updated Successfully", data:{firmName:firm_name, address, contactNo:contact} });
   } catch (error) {
     console.log(error);
     throw new CustomError.BadRequestError(error);
@@ -286,4 +329,4 @@ const userExistsController = async (req, res) => {
 
 
 
-module.exports = { userExistsController, loginController, registerController, changePasswordController, sendOtpController, forgetPasswordController };
+module.exports = { userExistsController, loginController, registerController, changePasswordController, sendOtpController, forgetPasswordController,updateFirmInfoController };

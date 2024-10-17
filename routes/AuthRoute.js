@@ -11,6 +11,7 @@ const {
   sendOtpController,
   userExistsController,
   forgetPasswordController,
+  updateFirmInfoController,
 } = require("../controllers/AuthController");
 const { ValidateDeviceController } = require("../controllers/DeviceController");
 
@@ -20,10 +21,12 @@ const router = express.Router(); // Create a new express router instance
 router.post("/login", loginController);
 router.get("/userExists", userExistsController);
 router.post("/register", registerController);
-router.patch("/changePassword", changePasswordController);
 router.post("/validateDevice", ValidateDeviceController);
 router.get("/sendOtp", sendOtpController);
 router.patch("/forgetPassword", forgetPasswordController);
+
+router.patch("/changePassword",  authenticateUser, changePasswordController);
+router.patch("/updateFirmInfo",  authenticateUser, updateFirmInfoController);
 // router.post("/verifyOtp", verifyOtpController);
 
 // Define a POST route for the register path

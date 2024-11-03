@@ -1,4 +1,4 @@
-const db = require("./connection");
+const db = require("../db/connection");
 const crypto = require("crypto");
 
 module.exports = class Users {

@@ -1,7 +1,7 @@
-const Users = require("../db/User");
-const Device = require("../db/Device");
-const Data = require("../db/Data");
-const { getStatus, validateRequestBody } = require("../utils/common");
+const Users = require("../models/User");
+const Device = require("../models/Device");
+const Data = require("../models/Data");
+const { getStatus, validateRequestBody, getDeviceType } = require("../utils/common");
 
 const AddDeviceController = async (req, res) => {
   try {
@@ -81,6 +81,7 @@ const ValidateDeviceController = async (req, res) => {
     res.status(500).json({ success: false, message: er });
   }
 };
+
 const UpdateAliasController = async (req, res) => {
   try {
     const { deviceId } = req.query;
@@ -237,7 +238,31 @@ const GetUserDevicesInfoController = async (req, res) => {
       let obj = await acc;
       const DataObj = new Data(deviceId);
       let data = await DataObj.getLatestData();
-      const ts_server = data?.latestData?.[0]?.ts_server;
+     
+
+       // =============== to get the time stamp column name for different device type ==============
+       const deviceType = getDeviceType(deviceId);
+       const [deviceTypeInfo]=await Device.getDeviceTypeInfo(deviceType);
+       const {ts_col_name}=deviceTypeInfo[0]; 
+       const ts_server=data.latestData[0]?.[ts_col_name];
+       // ==========================================================================================
+
+       
+      // if(getDeviceType(deviceId)==="ENE" ||  getDeviceType(deviceId)==="FLM"){
+      //  ts_server = data.latestData[0].ts_server;
+      // }
+      // else if(getDeviceType(deviceId)==="GWR"){
+      //   ts_server = data.latestData[0].date;
+      // }
+      // else if(getDeviceType(deviceId)==="IAQ"){
+      //   ts_server = data.latestData[0].date_time;
+      // }
+      // else if(getDeviceType(deviceId)==="FMU"){
+      //   ts_server = data.latestData[0].ts;
+      // }
+      // else if(getDeviceType(deviceId)==="WMS"){
+      //   ts_server = data.latestData[0]._13;
+      // }
       obj = [...obj, { [deviceId]: { status: getStatus(ts_server) } }];
       return obj;
     }, Promise.resolve([]));
@@ -258,7 +283,7 @@ const GetUserDevicesInfoController = async (req, res) => {
 
         // return;
 
-        const [long, lat, address] = deviceInfo?.[0]?.dev_location.split(";");
+        const [long, lat, address] = deviceInfo[0].dev_location.split(";");
 
         // Attach location info to the device's status object
         objValue.deviceId = deviceId;

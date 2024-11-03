@@ -29,5 +29,12 @@ function getStatus(timestamp) {
     return false;
   }
 
+  function getDeviceType(text) {
+    // Use regex to match all characters at the start of the string until a digit is encountered
+    const match = text.match(/^[A-Za-z]+/);
+    return match ? match[0] : '';
+  }
+  
 
-  module.exports={getStatus,validateEmail,validateRequestBody}
+
+  module.exports={getStatus,validateEmail,validateRequestBody, getDeviceType}

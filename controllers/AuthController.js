@@ -7,9 +7,9 @@ const htmlTemplate = require("../template/html/otp-mail");
 const {validateRequestBody,validateEmail }=require("../utils/common")
 
 // local imports
-const Users = require("../db/User");
+const Users = require("../models/User");
 const CustomError = require("../errors/index");
-const { GetDeviceInfo } = require("../db/Device");
+const { GetDeviceInfo } = require("../models/Device");
 
 var client = new postmark.ServerClient(process.env.POSTMARK_API_KEY);
 // ======================================================== Login controller ===============================================================
@@ -69,7 +69,7 @@ const loginController = async (req, res) => {
 
     const productsList = await deviceIds.reduce(async (acc, deviceId) => {
       const [response] = await GetDeviceInfo(deviceId);
-      const alias = (await response[0]?.alias) || deviceId;
+      const alias = (await response[0].alias) || deviceId;
       acc = [...(await acc), { deviceId, alias }];
       return acc;
     }, []);
@@ -282,7 +282,7 @@ const sendOtpController = async (req, res) => {
         "Engineering and Environmental Solutions Pvt Ltd",
         "Cloud Enviro",
         "https://app.enggenv.com/public/elementRed.svg",
-        response?.otp
+        response.otp
       ),
       TextBody: "",
       MessageStream: "cloud-enviro-v2",

@@ -8,11 +8,26 @@ class FLM {
   getLatestData() {
     return new Promise(async (resolve, reject) => {
       try {
+        const totalizerColumn = "cumm";
         // Query to get the latest row
-        const latestRowQuery = "SELECT * FROM ?? ORDER BY _id DESC LIMIT 1";
-
+        const latestRowQuery = `
+            WITH last_date AS (
+                SELECT MAX(DATE(ts_server)) AS max_date FROM ??
+            )
+            SELECT 
+                DATE_FORMAT(ts_server, '%Y-%m-%d') AS ts_server,
+                MAX(??) AS final_totalizer,
+                ROUND((MAX(??) - MIN(??)), 2) AS daily_flow
+            FROM ??
+            WHERE DATE(ts_server) = (SELECT max_date FROM last_date);
+        `;
         // Fetch the latest row
-        const latestRow = await db.query(latestRowQuery, [this.deviceId]);
+        const latestRow = await db.query(latestRowQuery, [this.deviceId ,
+          totalizerColumn,
+          totalizerColumn,
+          totalizerColumn,
+          this.deviceId
+      ]);
 
         if (latestRow.length > 0) {
           const latestData = latestRow[0];
@@ -32,7 +47,7 @@ class FLM {
           const avgColumns = columns[0]
             .map(
               (col) =>
-                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS ${col.COLUMN_NAME}`
+                `(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS ${col.COLUMN_NAME}`
             )
             .join(", ");
 
@@ -40,7 +55,9 @@ class FLM {
           // If there are numeric columns, calculate averages
           if (avgColumns) {
             const avgQuery = `
-                    SELECT ${avgColumns}
+                    SELECT DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp,
+                ${totalizerColumn} AS final_totalizer,
+                ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow
                     FROM ??
                     WHERE DATE(ts_server) = DATE(?)
                   `;
@@ -159,56 +176,35 @@ class FLM {
         const latestRow = await db.query(latestRowQuery, [deviceId]);
 
         if (latestRow.length > 0) {
-          const latestData = latestRow[0];
-
-          // console.log({ latestData });
-
-          // Dynamically construct the query to calculate averages for all numeric columns
-          const tableInfoQuery = `
-                SELECT COLUMN_NAME 
-                FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE TABLE_NAME = ? AND DATA_TYPE = 'varchar'
-              `;
-
-          // Get the numeric columns
-          const columns = await db.query(tableInfoQuery, [deviceId]);
-          // console.log(columns[0]);
-          const avgColumns = columns[0]
-            .map(
-              (col) =>
-                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS ${col.COLUMN_NAME}`
-            )
-            .join(", ");
-
-          // console.log(avgColumns);
-
-          if (avgColumns) {
-            if (duration.includes("day")) {
-              duration = duration.split("_")[0];
-              const avgQuery = `WITH last_date AS (SELECT MAX(DATE(ts_server)) AS max_date FROM ??) SELECT DATE_FORMAT(ts_server, '%Y-%m-%d, %H:00') AS timeStamp, ${avgColumns} FROM ?? WHERE ts_server BETWEEN (SELECT max_date - INTERVAL ? DAY FROM last_date) AND (SELECT max_date + INTERVAL 1 DAY - INTERVAL 1 SECOND FROM last_date)  GROUP BY timeStamp ORDER BY timeStamp;`;
-              // Fetch the averages for the day of the latest data point
-              const avgResult = await db.query(avgQuery, [
-                deviceId,
-                deviceId,
-                Number(duration) - 1,
-              ]);
-              // console.log({ avgValue: avgResult[0] });
-              resolve({ data: avgResult[0] });
-            } else if (duration.includes("month")) {
-              duration = duration.split("_")[0];
-              const avgQuery = `WITH last_date AS (SELECT MAX(DATE(ts_server)) AS max_date FROM ??) SELECT DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp, ${avgColumns} FROM ?? WHERE ts_server BETWEEN (SELECT max_date - INTERVAL ? MONTH FROM last_date) AND (SELECT max_date + INTERVAL 1 DAY - INTERVAL 1 SECOND FROM last_date) GROUP BY DATE_FORMAT(ts_server, '%Y-%m-%d') ORDER BY timeStamp;`;
-              // Fetch the averages for the day of the latest data point
-              const avgResult = await db.query(avgQuery, [
-                deviceId,
-                deviceId,
-                duration,
-              ]);
-              // console.log({ avgValue: avgResult[0] });
-              resolve({ data: avgResult[0] });
-            }
-          } else {
-            // No numeric columns found, return just the latest row
-            resolve({ data: {} });
+          const totalizerColumn = "cumm";
+          if (duration.includes("day")) {
+            duration = duration.split("_")[0];
+            const avgQuery = `WITH last_date AS (SELECT MAX(DATE(ts_server)) AS max_date FROM ??) SELECT  DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp,
+                MIN(${totalizerColumn}) AS initial_totalizer,
+                MAX(${totalizerColumn}) AS final_totalizer,
+                ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow FROM ?? WHERE ts_server BETWEEN (SELECT max_date - INTERVAL ? DAY FROM last_date) AND (SELECT max_date + INTERVAL 1 DAY - INTERVAL 1 SECOND FROM last_date)  GROUP BY timeStamp ORDER BY timeStamp;`;
+            // Fetch the averages for the day of the latest data point
+            const avgResult = await db.query(avgQuery, [
+              deviceId,
+              deviceId,
+              Number(duration) - 1,
+            ]);
+            // console.log({ avgValue: avgResult[0] });
+            resolve({ data: avgResult[0] });
+          } else if (duration.includes("month")) {
+            duration = duration.split("_")[0];
+            const avgQuery = `WITH last_date AS (SELECT MAX(DATE(ts_server)) AS max_date FROM ??) SELECT  DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp,
+                MIN(${totalizerColumn}) AS initial_totalizer,
+                MAX(${totalizerColumn}) AS final_totalizer,
+                ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow FROM ?? WHERE ts_server BETWEEN (SELECT max_date - INTERVAL ? MONTH FROM last_date) AND (SELECT max_date + INTERVAL 1 DAY - INTERVAL 1 SECOND FROM last_date) GROUP BY DATE_FORMAT(ts_server, '%Y-%m-%d') ORDER BY timeStamp;`;
+            // Fetch the averages for the day of the latest data point
+            const avgResult = await db.query(avgQuery, [
+              deviceId,
+              deviceId,
+              duration,
+            ]);
+            // console.log({ avgValue: avgResult[0] });
+            resolve({ data: avgResult[0] });
           }
         } else {
           resolve(null); // No data found
@@ -229,55 +225,42 @@ class FLM {
         const latestRow = await db.query(latestRowQuery, [deviceId]);
 
         if (latestRow.length > 0) {
-          const latestData = latestRow[0];
+          // Check the totalizer column (assumed as numeric)
+          const totalizerColumn = "cumm"; // Replace with the correct column name for totalizer
 
-          if (average === "no_average") {
-            const query = `SELECT * FROM ?? WHERE ts_server BETWEEN ? AND ? ORDER BY ts_server;`;
-            // Fetch the averages for the day of the latest data point
-            const data = await db.query(query, [deviceId, from, to]);
-            // console.log({ avgValue: data[0] });
-            resolve({ data: data[0] });
-          }
+          if (average === "daily") {
+            // Query to get the initial and final totalizer values per day
+            const query = `
+              SELECT 
+                DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp,
+                MIN(${totalizerColumn}) AS initial_totalizer,
+                MAX(${totalizerColumn}) AS final_totalizer,
+                ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow
+              FROM ??
+              WHERE ts_server BETWEEN ? AND ?
+              GROUP BY DATE(ts_server)
+              ORDER BY timeStamp;
+            `;
+            const dailyResult = await db.query(query, [deviceId, from, to]);
+            console.log({ dailyResult: dailyResult[0] });
+            resolve({ data: dailyResult[0] });
+          } else if (average === "monthly") {
+            // Query to get the initial and final totalizer values per month
+            const query = `
+              SELECT 
+                DATE_FORMAT(ts_server, '%Y-%m') AS timeStamp,
+                MIN(${totalizerColumn}) AS initial_totalizer,
+                MAX(${totalizerColumn}) AS final_totalizer,
+                ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS monthly_flow
+              FROM ??
+              WHERE ts_server BETWEEN ? AND ?
+              GROUP BY timeStamp
+              ORDER BY timeStamp;
+            `;
+            const monthlyResult = await db.query(query, [deviceId, from, to]);
 
-          // console.log({ latestData });
-
-          // Dynamically construct the query to calculate averages for all numeric columns
-          const tableInfoQuery = `
-                SELECT COLUMN_NAME 
-                FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE TABLE_NAME = ? AND DATA_TYPE = 'varchar'
-              `;
-
-          // Get the numeric columns
-          const columns = await db.query(tableInfoQuery, [deviceId]);
-          // console.log(columns[0]);
-          const avgColumns = columns[0]
-            .map(
-              (col) =>
-                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS ${col.COLUMN_NAME}`
-            )
-            .join(", ");
-
-          // console.log(avgColumns);
-
-          if (avgColumns) {
-            if (average.includes("hourly")) {
-              const avgQuery = `SELECT DATE_FORMAT(ts_server, '%Y-%m-%d, %H:00') AS timeStamp, ${avgColumns} FROM ?? WHERE ts_server BETWEEN ? AND ? GROUP BY timeStamp ORDER BY timeStamp;`;
-              // Fetch the averages for the day of the latest data point
-              const avgResult = await db.query(avgQuery, [deviceId, from, to]);
-              // console.log({ avgValue: avgResult[0] });
-              resolve({ data: avgResult[0] });
-            } else if (average.includes("daily")) {
-              const avgQuery = `SELECT DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp, ${avgColumns} FROM ?? WHERE ts_server BETWEEN ? AND ? GROUP BY DATE_FORMAT(ts_server, '%Y-%m-%d') ORDER BY timeStamp;`;
-              // Fetch the averages for the day of the latest data point
-
-              console.log(avgQuery);
-              const avgResult = await db.query(avgQuery, [deviceId, from, to]);
-              // console.log({ avgValue: avgResult[0] });
-              resolve({ data: avgResult[0] });
-            }
+            resolve({ data: monthlyResult[0] });
           } else {
-            // No numeric columns found, return just the latest row
             resolve({ data: {} });
           }
         } else {

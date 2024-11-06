@@ -32,7 +32,7 @@ class PIZ {
           const avgColumns = columns[0]
             .map(
               (col) =>
-                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS avg_${col.COLUMN_NAME}`
+                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS ${col.COLUMN_NAME}`
             )
             .join(", ");
 
@@ -104,7 +104,7 @@ class PIZ {
           const avgColumns = columns[0]
             .map(
               (col) =>
-                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS avg_${col.COLUMN_NAME}`
+                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS ${col.COLUMN_NAME}`
             )
             .join(", ");
 
@@ -176,7 +176,7 @@ class PIZ {
           const avgColumns = columns[0]
             .map(
               (col) =>
-                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS avg_${col.COLUMN_NAME}`
+                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS ${col.COLUMN_NAME}`
             )
             .join(", ");
 
@@ -254,7 +254,7 @@ class PIZ {
           const avgColumns = columns[0]
             .map(
               (col) =>
-                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS avg_${col.COLUMN_NAME}`
+                `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS ${col.COLUMN_NAME}`
             )
             .join(", ");
 

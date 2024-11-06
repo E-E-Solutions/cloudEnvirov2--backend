@@ -122,7 +122,7 @@ const GetLatestData = async (req, res) => {
               maximum: deviceSettings[key].maximum,
               threshold: deviceSettings[key].threshold,
               value: value,
-              average: Number(dailyAverages[`avg_${key}`]).toFixed(0),
+              average: Number(dailyAverages[`${key}`]).toFixed(0),
             };
 
             // console.log(dataObj);
@@ -514,8 +514,6 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
     setting = setting[0];
     console.log({ setting });
     const userPrefferedParaInfo = JSON.parse(setting.para_info || "{}");
-    console.log({ userPrefferedParaInfo });
-    console.log({ uppiUser: userPrefferedParaInfo[deviceId] });
 
     // if user has set preferred parameters, use them
     const paraObj = paraInfo[0].reduce((acc, info) => {

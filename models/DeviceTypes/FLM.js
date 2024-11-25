@@ -7,93 +7,102 @@ class FLM {
 
   getLatestData() {
     return new Promise(async (resolve, reject) => {
-      try {
-        const totalizerColumn = "cumm";
-        // Query to get the latest row
-        const latestRowQuery = `
-            WITH last_date AS (
-                SELECT MAX(DATE(ts_server)) AS max_date FROM ??
-            )
-            SELECT 
-                DATE_FORMAT(ts_server, '%Y-%m-%d') AS ts_server,
-                MAX(??) AS final_totalizer,
-                ROUND((MAX(??) - MIN(??)), 2) AS daily_flow
-            FROM ??
-            WHERE DATE(ts_server) = (SELECT max_date FROM last_date);
-        `;
-        // Fetch the latest row
-        const latestRow = await db.query(latestRowQuery, [this.deviceId ,
-          totalizerColumn,
-          totalizerColumn,
-          totalizerColumn,
-          this.deviceId
-      ]);
-
-        if (latestRow.length > 0) {
-          const latestData = latestRow[0];
-
-          // console.log({ latestData });
-
-          // Dynamically construct the query to calculate averages for all numeric columns
-          const tableInfoQuery = `
-                  SELECT COLUMN_NAME 
-                  FROM INFORMATION_SCHEMA.COLUMNS 
-                  WHERE TABLE_NAME = ? AND DATA_TYPE = 'varchar'
-                `;
-
-          // Get the numeric columns
-          const columns = await db.query(tableInfoQuery, [this.deviceId]);
-          // console.log(columns[0]);
-          const avgColumns = columns[0]
-            .map(
-              (col) =>
-                `(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS ${col.COLUMN_NAME}`
-            )
-            .join(", ");
-
-          // console.log(avgColumns);
-          // If there are numeric columns, calculate averages
-          if (avgColumns) {
-            const avgQuery = `
-                    SELECT DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp,
-                ${totalizerColumn} AS final_totalizer,
-                ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow
-                    FROM ??
-                    WHERE DATE(ts_server) = DATE(?)
-                  `;
-
-            // console.log({ avgQuery });
-
-            // Fetch the averages for the day of the latest data point
-            const avgResult = await db.query(avgQuery, [
-              this.deviceId,
-              latestData[0].ts_server,
+        try {
+            const totalizerColumn = "cumm";
+            
+            // Query to get the latest row
+            const latestRowQuery = `
+                WITH last_date AS (
+                    SELECT MAX(DATE(ts_server)) AS max_date FROM ??
+                )
+                SELECT 
+                    DATE_FORMAT(MAX(ts_server), '%Y-%m-%d') AS ts_server,
+                    MAX(??) AS final_totalizer,
+                    ROUND((MAX(??) - MIN(??)), 2) AS daily_flow
+                FROM ??
+                WHERE DATE(ts_server) = (SELECT max_date FROM last_date);
+            `;
+            
+            // Fetch the latest row
+            const [latestRow] = await db.query(latestRowQuery, [
+                this.deviceId,
+                totalizerColumn,
+                totalizerColumn,
+                totalizerColumn,
+                this.deviceId,
             ]);
 
-            // console.log({ avgValue: avgResult[0] });
+            // Check if latestRow is defined and has data
+            if (!latestRow || latestRow.length === 0) {
+                return resolve(null); // No data found for latest row
+            }
+            const latestData = latestRow[0];
+            console.log("Latest Data:", latestData);
 
-            // Combine latest data with average values
-            const result = {
-              latestData,
-              dailyAverages: avgResult[0],
-            };
+            // Query to calculate averages for numeric columns
+            // const tableInfoQuery = `
+            //     SELECT COLUMN_NAME 
+            //     FROM INFORMATION_SCHEMA.COLUMNS 
+            //     WHERE TABLE_NAME = ? AND DATA_TYPE = 'varchar'
+            // `;
 
-            // console.log(result);
+            // // Get the numeric columns
+            // const [columns] = await db.query(tableInfoQuery, [this.deviceId]);
+            
+            // // Check if columns exist
+            // if (!columns || columns.length === 0) {
+            //     return resolve({ latestData, dailyAverages: {} }); // No numeric columns
+            // }
 
-            resolve(result);
-          } else {
-            // No numeric columns found, return just the latest row
-            resolve({ latestData, dailyAverages: {} });
-          }
-        } else {
-          resolve(null); // No data found
+            // const avgColumns = columns
+            //     .map(
+            //         (col) =>
+            //             `AVG(CAST(${col.COLUMN_NAME} AS DECIMAL(10,2))) AS avg_${col.COLUMN_NAME}`
+            //     )
+            //     .join(", ");
+
+            // // If there are numeric columns, calculate averages
+            // if (avgColumns) {
+            //     const avgQuery = `
+            //         SELECT 
+            //             DATE_FORMAT(MAX(ts_server), '%Y-%m-%d') AS timeStamp,
+            //             MAX(${totalizerColumn}) AS final_totalizer,
+            //             ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow,
+            //             ${avgColumns}
+            //         FROM ??
+            //         WHERE DATE(ts_server) = DATE(?)
+            //     `;
+
+            //     // Fetch the averages for the day of the latest data point
+            //     const [avgResult] = await db.query(avgQuery, [
+            //         this.deviceId,
+            //         latestData.ts_server,
+            //     ]);
+
+            //     // Check if avgResult has data
+            //     if (!avgResult || avgResult.length === 0) {
+            //         return resolve({ latestData, dailyAverages: {} }); // No averages found
+            //     }
+                
+                // Combine latest data with average values
+                const result = {
+                    latestData:[latestData],
+                    dailyAverages: {},
+                };
+
+                resolve(result);
+            // } else {
+            //     // No numeric columns found, return just the latest row
+            //     resolve({ latestData, dailyAverages: {} });
+            // }
+        } catch (er) {
+            console.error("Error in getLatestData:", er);
+            reject(er);
         }
-      } catch (er) {
-        console.log(er);
-        reject(er);
-      }
     });
-  }
+}
+
+
 
   static getLastAvgDataByDays(deviceId, days, average) {
     return new Promise(async (resolve, reject) => {

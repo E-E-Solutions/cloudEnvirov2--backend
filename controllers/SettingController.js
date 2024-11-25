@@ -49,11 +49,9 @@ const SetParaInfo=async(req,res)=>{
         const {paraInfo}=req.body;
         const oldSettings=new Settings(email);
         const [oldSettingsData]=await oldSettings.getSettings();
-        // Check if oldSettingsData is valid
-        if (!oldSettingsData || oldSettingsData.length === 0) {
-            return res.status(404).json({ success: "false", message: "Settings not found" });
-        }
-        const oldParaInfo=JSON.parse(oldSettingsData[0].para_info ||  "{}");
+
+        console.log(oldSettingsData[0])
+        const oldParaInfo= oldSettingsData[0] ? JSON.parse(oldSettingsData[0].para_info) : {};
         const data=JSON.stringify({ ...oldParaInfo, ...paraInfo });
         const settings= await Settings.setParaSettings(data,email);
         if(settings[0].affectedRows>0){

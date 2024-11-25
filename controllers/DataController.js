@@ -35,9 +35,16 @@ const GetLatestData = async (req, res) => {
     let latestDataObj = await DataObj.getLatestData();
     console.log({ latestDataObj });
 
+    if(!latestDataObj){
+      return res.status(501).json({
+        success:false,
+        message:"No data is currently available for this device"
+      })
+    }
     // return;
     const data = latestDataObj.latestData[0];
     console.log({ data });
+  //  return res.status(200).json({ success:"false", data:latestDataObj})
     const dailyAverages = latestDataObj.dailyAverages[0];
 
     // let ts_server = "";
@@ -47,10 +54,10 @@ const GetLatestData = async (req, res) => {
     const { ts_col_name, useless_col } = deviceTypeInfo[0];
     const deleteColumns = JSON.parse(useless_col);
     deleteColumns.forEach((col) => {
-      delete data?.[col]; // delete  useless columns like lg, lt, bv,  etc.
+      delete data[col]; // delete  useless columns like lg, lt, bv,  etc.
     });
-    const ts_server = data?.[ts_col_name];
-    delete data?.[ts_col_name];
+    const ts_server = data[ts_col_name];
+    delete data[ts_col_name];
 
     // if (deviceType === "ENE" ||  deviceType === "FLM") {
     //   ts_server = data.ts_server;
@@ -109,7 +116,8 @@ const GetLatestData = async (req, res) => {
           let [setting] = await settings.getSettings();
           setting = setting[0];
           // console.log({ setting });
-          const paraInfo = JSON.parse(setting.para_info || "{}");
+
+          const paraInfo = setting ? JSON.parse(setting.para_info) : {};
           let deviceSettings = paraInfo[deviceId];
           // console.log({ deviceSettings });
 
@@ -122,7 +130,7 @@ const GetLatestData = async (req, res) => {
               maximum: deviceSettings[key].maximum,
               threshold: deviceSettings[key].threshold,
               value: value,
-              average: Number(dailyAverages[`${key}`]).toFixed(0),
+              average: dailyAverages && Number(dailyAverages[`${key}`]).toFixed(0),
             };
 
             // console.log(dataObj);
@@ -161,10 +169,13 @@ const GetLatestData = async (req, res) => {
     console.log({ LatestData });
     console.log({ ts_server });
     const tsServer = new Date(ts_server) || ts_server;
-    const gmtOffset = tsServer.getTimezoneOffset() * 60000; // Convert minutes to milliseconds
-    const adjustedTimestamp = tsServer.getTime() - gmtOffset;
+    let gmtOffset = tsServer.getTimezoneOffset() * 60000; // Convert minutes to milliseconds
 
-    console.log({ tsServer, adjustedTimestamp });
+    // gmtOffset=gmtOffset===0?-19800000:gmtOffset;  // this is because  of the server timezone offset is 0.
+  
+    const adjustedTimestamp = tsServer.getTime() + gmtOffset;
+
+    console.log({gmtOffset, tsServer, adjustedTimestamp, ts:new Date(adjustedTimestamp) });
 
     res.status(200).json({
       success: true,
@@ -172,11 +183,14 @@ const GetLatestData = async (req, res) => {
       time: adjustedTimestamp,
       dataAvailabilityYears: years.sort((a, b) => b - a),
       status: getStatus(ts_server),
+      other:{
+        gmtOffset, tsServer, adjustedTimestamp, ts:new Date(adjustedTimestamp) 
+      }
     });
     // res.status(500).json({success:false,message:"Something Went wrong"})
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error" });
+    res.status(500).send({ success: false, message: "Internal Server Error | "+er });
   }
 };
 
@@ -204,14 +218,15 @@ const GetDeviceStatusAndLocation = async (req, res) => {
       const DataObj = new Data(deviceId);
       let data = await DataObj.getLatestData();
       console.log({ data });
-
+      if(data){
+     
       data.latestData[0].ts_server;
 
       // =============== to get the time stamp column name for different device type ==============
       const deviceType = getDeviceType(deviceId);
       const [deviceTypeInfo] = await Device.getDeviceTypeInfo(deviceType);
       const { ts_col_name } = deviceTypeInfo[0];
-      const ts_server = data.latestData[0]?.[ts_col_name];
+      const ts_server = data.latestData[0][ts_col_name];
       // ==========================================================================================
 
       // let ts_server = "";
@@ -237,6 +252,10 @@ const GetDeviceStatusAndLocation = async (req, res) => {
 
       obj = [...obj, { [deviceId]: { status: getStatus(ts_server) } }];
       return obj;
+      }
+      else{
+        return obj;
+      }
     }, Promise.resolve([]));
 
     // console.log({ result: JSON.stringify(result) });
@@ -261,7 +280,7 @@ const GetDeviceStatusAndLocation = async (req, res) => {
     const settingsObj = new Settings(email);
     const [settings] = await settingsObj.getSettings();
     // console.log({settings})
-    if (settings[0].map_settings) {
+    if (settings[0] && settings[0].map_settings) {
       const settingsList = JSON.parse(settings[0].map_settings);
       // console.log({ settingsList });
       returnableObj = { mapData: returnableObj, mapSettings: settingsList };
@@ -275,7 +294,7 @@ const GetDeviceStatusAndLocation = async (req, res) => {
     res.status(200).json({ success: true, data: returnableObj });
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error" });
+    res.status(500).send({ success: false, message: "Internal Server Error | "+er });
   }
 };
 
@@ -393,7 +412,7 @@ const GetLastDataByDuration = async (req, res) => {
     let [setting] = await settings.getSettings();
     setting = setting[0];
     console.log({ setting });
-    const userPrefferedParaInfo = JSON.parse(setting.para_info || "{}");
+    const userPrefferedParaInfo =setting ? JSON.parse( setting.para_info ) : {};
     console.log({ userPrefferedParaInfo });
     console.log({ uppiUser: userPrefferedParaInfo[deviceId] });
 
@@ -461,7 +480,7 @@ const GetLastDataByDuration = async (req, res) => {
     res.status(200).json({ success: true, data: avgData, deviceId });
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error" });
+    res.status(500).send({ success: false, message: "Internal Server Error | "+er });
   }
 };
 
@@ -513,7 +532,7 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
     let [setting] = await settings.getSettings();
     setting = setting[0];
     console.log({ setting });
-    const userPrefferedParaInfo = JSON.parse(setting.para_info || "{}");
+    const userPrefferedParaInfo =setting ? JSON.parse( setting.para_info ) : {};
 
     // if user has set preferred parameters, use them
     const paraObj = paraInfo[0].reduce((acc, info) => {

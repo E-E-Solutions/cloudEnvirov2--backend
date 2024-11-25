@@ -14,7 +14,7 @@ class GWR {
             // Fetch the latest row
             const latestRow = await db.query(latestRowQuery, [this.deviceId]);
             
-            if (latestRow.length > 0) {
+            if (latestRow[0].length > 0) {
                 const latestData = latestRow[0];
                 console.log({latestData})
                 const latestDate=new Date(latestData[0].date).toISOString().split("T")[0]

@@ -244,7 +244,7 @@ const GetUserDevicesInfoController = async (req, res) => {
        const deviceType = getDeviceType(deviceId);
        const [deviceTypeInfo]=await Device.getDeviceTypeInfo(deviceType);
        const {ts_col_name}=deviceTypeInfo[0]; 
-       const ts_server=data.latestData[0]?.[ts_col_name];
+       const ts_server=data.latestData[0][ts_col_name];
        // ==========================================================================================
 
        

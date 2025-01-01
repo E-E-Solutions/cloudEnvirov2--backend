@@ -121,8 +121,24 @@ const registerController = async (req, res) => {
       const user = new Users(firmName, password, email, productsList, contactNo, address);
       user.save();
 
+      const token = jwt.sign(
+        { email, password }, // Customize payload as needed
+        process.env.ACCESS_TOKEN_SECRET,
+        { expiresIn: "1h" }
+      );
+
       // if (response[0]?.affectedRows > 0) {
-      res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully" });
+      // res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully",  });
+
+      res.status(StatusCodes.CREATED).json({
+        success: true,
+        message: "User Register Successfully",
+        token: token,
+        productsList,
+        address,
+        firmName,
+        contactNo
+      });
       // } else {
       //   res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Something went wrong!" });
       // }

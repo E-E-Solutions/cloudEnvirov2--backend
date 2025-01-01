@@ -34,7 +34,15 @@ function getStatus(timestamp) {
     const match = text.match(/^[A-Za-z]+/);
     return match ? match[0] : '';
   }
+
+
+  function randomInt(){
+    // Generate a random integer between 1000 and 10000
+    const otp = Math.floor(Math.random() * 10000);
+    // Pad the number with leading zeros to ensure it is 4 digits
+    return otp.toString().padStart(4, '0');
+  }
   
 
 
-  module.exports={getStatus,validateEmail,validateRequestBody, getDeviceType}
+  module.exports={getStatus,validateEmail,validateRequestBody, getDeviceType, randomInt}

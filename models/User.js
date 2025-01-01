@@ -1,5 +1,6 @@
 const db = require("../db/connection");
 const crypto = require("crypto");
+const {randomInt} = require("../utils/common")
 
 module.exports = class Users {
   constructor(firmName, password, emailId, productsList, contactNo, address) {
@@ -125,7 +126,7 @@ module.exports = class Users {
   }
 
   static async generateOtp(emailId) {
-    const otp = crypto.randomInt(1000, 10000).toString();
+    const otp = randomInt().toString();
     const expiresAtUnix = Date.now() + 10 * 60 * 1000;
     const dateTime = new Date(expiresAtUnix);
     const expiresAt =

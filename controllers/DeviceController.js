@@ -238,33 +238,21 @@ const GetUserDevicesInfoController = async (req, res) => {
       let obj = await acc;
       const DataObj = new Data(deviceId);
       let data = await DataObj.getLatestData();
-     
-
-       // =============== to get the time stamp column name for different device type ==============
-       const deviceType = getDeviceType(deviceId);
-       const [deviceTypeInfo]=await Device.getDeviceTypeInfo(deviceType);
-       const {ts_col_name}=deviceTypeInfo[0]; 
-       const ts_server=data.latestData[0][ts_col_name];
-       // ==========================================================================================
-
+      if(data){
+        // =============== to get the time stamp column name for different device type ==============
+        const deviceType = getDeviceType(deviceId);
+        const [deviceTypeInfo]=await Device.getDeviceTypeInfo(deviceType);
+        const {ts_col_name}=deviceTypeInfo[0]; 
+  
+        const ts_server=data.latestData[0][ts_col_name];
+        // ==========================================================================================
+       obj = [...obj, { [deviceId]: { status: getStatus(ts_server) } }];
        
-      // if(getDeviceType(deviceId)==="ENE" ||  getDeviceType(deviceId)==="FLM"){
-      //  ts_server = data.latestData[0].ts_server;
-      // }
-      // else if(getDeviceType(deviceId)==="GWR"){
-      //   ts_server = data.latestData[0].date;
-      // }
-      // else if(getDeviceType(deviceId)==="IAQ"){
-      //   ts_server = data.latestData[0].date_time;
-      // }
-      // else if(getDeviceType(deviceId)==="FMU"){
-      //   ts_server = data.latestData[0].ts;
-      // }
-      // else if(getDeviceType(deviceId)==="WMS"){
-      //   ts_server = data.latestData[0]._13;
-      // }
-      obj = [...obj, { [deviceId]: { status: getStatus(ts_server) } }];
+      }else{
+        obj = [...obj, { [deviceId]: { status: "Offline" } }];
+      }
       return obj;
+
     }, Promise.resolve([]));
 
     console.log({ result: JSON.stringify(result) });

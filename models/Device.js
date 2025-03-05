@@ -49,6 +49,7 @@ class Device {
   }
 
   static getDeviceTypeInfo(type){
+    console.log({type})
     return new Promise((resolve, reject) => {
       try {
         const row = db.query(

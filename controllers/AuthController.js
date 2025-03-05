@@ -4,12 +4,16 @@ const { StatusCodes } = require("http-status-codes");
 const bcrypt = require("bcryptjs");
 var postmark = require("postmark");
 const htmlTemplate = require("../template/html/otp-mail");
-const {validateRequestBody,validateEmail }=require("../utils/common")
+const {validateRequestBody,validateEmail }=require("../utils/common");
+const https = require("https"); // Use https for secure requests
+
 
 // local imports
 const Users = require("../models/User");
 const CustomError = require("../errors/index");
 const { GetDeviceInfo } = require("../models/Device");
+
+const {oauth2client} = require("../utils/googleConfig");
 
 var client = new postmark.ServerClient(process.env.POSTMARK_API_KEY);
 // ======================================================== Login controller ===============================================================
@@ -42,6 +46,7 @@ const loginController = async (req, res) => {
     // const isPasswordCorrect = await bcrypt.compare(
     //   password,
     //   user[0][0].password
+
     // );
 
     const isPasswordCorrect = user[0][0].password === password;
@@ -85,11 +90,147 @@ const loginController = async (req, res) => {
       address: user[0][0].address,
       firmName: user[0][0].firm_name,
       contactNo: user[0][0].contact,
+      email
     });
   } catch (error) {
     // Handle errors
 
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: "Something went wrong | " + error });
+  }
+};
+
+const googleLoginController=async (req, res) => {
+  const { code } = req.query;
+  try {
+    if (!code) {
+      throw new Error("Authorization code is missing.");
+    }
+    console.log({ code });
+  
+    const {email, name,picture}= await getUserInfoFromGoogle(code);
+  
+    const user = await Users.findOne(email);
+    console.log({ user });
+  
+    if (!user || !user[0] || !user[0][0]) {
+      return res.status(200).json({ success: true, exists: false, message: "New User, Need some more information" });
+    }
+  
+    const token = jwt.sign(
+      { email: user[0][0].email, password: user[0][0].password },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "1h" }
+    );
+  
+    res.cookie("info-token-with-secret", token, {
+      httpOnly: true,
+      maxAge: 36000000, // Cookie expires in 10 hours
+    });
+  
+    let deviceIds = [];
+    if (user[0][0].products_list) {
+      deviceIds = JSON.parse(user[0][0].products_list);
+    }
+  
+    console.log({ deviceIds });
+  
+    const productsList = await deviceIds.reduce(async (acc, deviceId) => {
+      const [response] = await GetDeviceInfo(deviceId);
+      let alias;
+      if (response[0] && response[0].alias) {
+        alias = response[0].alias;
+      } else {
+        alias = deviceId;
+      }
+      acc = [...(await acc), { deviceId, alias }];
+      return acc;
+    }, []);
+  
+    let address = "";
+    if (user[0][0].address) {
+      address = user[0][0].address;
+    }
+  
+    let firmName = "";
+    if (user[0][0].firm_name) {
+      firmName = user[0][0].firm_name;
+    }
+  
+    let contactNo = "";
+    if (user[0][0].contact) {
+      contactNo = user[0][0].contact;
+    }
+  
+    res.status(StatusCodes.OK).json({
+      success: true,
+      exist: true,
+      message: "Login successfully",
+      token: token,
+      productsList,
+      address: address,
+      firmName: firmName,
+      contactNo: contactNo,
+      name,
+      picture,
+      email
+    });
+  } catch (er) {
+    console.error("Error occurred:", er);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: "Something went wrong | " + er.message, env:{
+      code: code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+    } });
+  }
+}
+
+const registerWithGoogleController = async (req, res) => {
+  try {
+    const { email, firmName, productsList, contactNo, address } = req.body;
+    console.log({ reqBody: req.body });
+    if (!email || !firmName || !productsList || !contactNo || !address ) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Please provide all the details" });
+    }
+
+    const password='1mllf7imc5huf64r66dhqcc0t7jgh57j'
+    console.log({
+      firmName, password, email, productsList, contactNo, address
+    });
+    
+    
+      const user = new Users(firmName, password, email, productsList, contactNo, address);
+      user.save();
+
+      const token = jwt.sign(
+        { email, password }, // Customize payload as needed
+        process.env.ACCESS_TOKEN_SECRET,
+        { expiresIn: "1h" }
+      );
+
+      // if (response[0]?.affectedRows > 0) {
+      // res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully",  });
+
+      res.status(StatusCodes.CREATED).json({
+        success: true,
+        message: "User Register Successfully",
+        token: token,
+        productsList,
+        address,
+        firmName,
+        contactNo
+      });
+      // } else {
+      //   res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Something went wrong!" });
+      // }
+   
+
+    // Hash the password
+    // const salt = await bcrypt.genSalt(10);
+    // const hashedPassword = await bcrypt.hash(password, salt);
+  } catch (error) {
+    console.log({ error });
+    throw new CustomError.BadRequestError(error);
   }
 };
 
@@ -344,5 +485,86 @@ const userExistsController = async (req, res) => {
 };
 
 
+const getUserInfoFromGoogle=async(code)=>{ 
+  try{
+    const googleTokenOptions = {
+      hostname: "oauth2.googleapis.com",
+      path: `/token`,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    };
+  
+    console.log({
+      code: code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      grant_type: "authorization_code",
+    })
+    
+  
+    const postData = new URLSearchParams({
+      code: code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      grant_type: "authorization_code",
+    }).toString();
+  
+    const googleTokenRequest = new Promise((resolve, reject) => {
+      const request = https.request(googleTokenOptions, (response) => {
+        let responseBody = "";
+        response.on("data", (chunk) => (responseBody += chunk));
+        response.on("end", () => resolve(JSON.parse(responseBody)));
+      });
+  
+      request.on("error", reject);
+      request.write(postData);
+      request.end();
+    });
+  
+    const googleRes = await googleTokenRequest;
+    console.log({googleRes})
+    if (!googleRes || !googleRes.access_token) {
+      throw new Error("Failed to fetch access token.");
+    }
+  
+    console.log({googleRes})
+  
+    const access_token = googleRes.access_token;
+  
+    const userInfoOptions = {
+      hostname: "www.googleapis.com",
+      path: `/oauth2/v1/userinfo?alt=json&access_token=${access_token}`,
+      method: "GET",
+    };
+  
+    const userInfoRequest = new Promise((resolve, reject) => {
+      const request = https.request(userInfoOptions, (response) => {
+        let responseBody = "";
+        response.on("data", (chunk) => (responseBody += chunk));
+        response.on("end", () => resolve(JSON.parse(responseBody)));
+      });
+  
+      request.on("error", reject);
+      request.end();
+    });
+  
+    const userData = await userInfoRequest;
+    if (!userData.email) {
+      throw new Error("Email not found in user data.");
+    }
+    return userData;
+  }
+  catch(er){
+    console.log({er});
+    return er;
+  }
+ 
+}
 
-module.exports = { userExistsController, loginController, registerController, changePasswordController, sendOtpController, forgetPasswordController,updateFirmInfoController };
+
+
+module.exports = { userExistsController, loginController,googleLoginController,registerWithGoogleController, registerController, changePasswordController, sendOtpController, forgetPasswordController,updateFirmInfoController };

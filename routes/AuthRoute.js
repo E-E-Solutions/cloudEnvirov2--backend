@@ -12,6 +12,8 @@ const {
   userExistsController,
   forgetPasswordController,
   updateFirmInfoController,
+  googleLoginController,
+  registerWithGoogleController
 } = require("../controllers/AuthController");
 const { ValidateDeviceController } = require("../controllers/DeviceController");
 
@@ -19,6 +21,8 @@ const router = express.Router(); // Create a new express router instance
 
 // Define a POST route for the login path
 router.post("/login", loginController);
+router.get("/googleLogin", googleLoginController);
+router.post("/googleRegister", registerWithGoogleController);
 router.get("/userExists", userExistsController);
 router.post("/register", registerController);
 router.post("/validateDevice", ValidateDeviceController);

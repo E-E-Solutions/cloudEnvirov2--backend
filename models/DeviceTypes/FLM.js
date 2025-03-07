@@ -10,7 +10,7 @@ class FLM {
       try {
         const totalizerColumn = "cumm";
 
-        // Query to get the latest row
+        // Query to get the latest row    
         const latestRowQuery = `
                 WITH last_date AS (
                     SELECT MAX(DATE(ts_server)) AS max_date FROM ??

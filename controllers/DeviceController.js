@@ -1,7 +1,11 @@
 const Users = require("../models/User");
 const Device = require("../models/Device");
 const Data = require("../models/Data");
-const { getStatus, validateRequestBody, getDeviceType } = require("../utils/common");
+const {
+  getStatus,
+  validateRequestBody,
+  getDeviceType,
+} = require("../utils/common");
 
 const AddDeviceController = async (req, res) => {
   try {
@@ -179,13 +183,11 @@ const UpdateLocationController = async (req, res) => {
         .status(200)
         .json({ success: true, message: "Location Updated Successfully!" });
     } else {
-      res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            "Something went wrong, we are unable to update all the locations, Please try again",
-        });
+      res.status(500).json({
+        success: false,
+        message:
+          "Something went wrong, we are unable to update all the locations, Please try again",
+      });
     }
   } catch (er) {
     console.log(er);
@@ -234,26 +236,31 @@ const GetUserDevicesInfoController = async (req, res) => {
     }
 
     // First, get the status for each device
-    const result = await productsList.reduce(async (acc, deviceId) => {
-      let obj = await acc;
-      const DataObj = new Data(deviceId);
-      let data = await DataObj.getLatestData();
-      if(data){
-        // =============== to get the time stamp column name for different device type ==============
-        const deviceType = getDeviceType(deviceId);
-        const [deviceTypeInfo]=await Device.getDeviceTypeInfo(deviceType);
-        const {ts_col_name}=deviceTypeInfo[0]; 
-  
-        const ts_server=data.latestData[0][ts_col_name];
-        // ==========================================================================================
-       obj = [...obj, { [deviceId]: { status: getStatus(ts_server) } }];
-       
-      }else{
-        obj = [...obj, { [deviceId]: { status: "Offline" } }];
-      }
-      return obj;
+    // const result = await productsList.reduce(async (acc, deviceId) => {
+    //   let obj = await acc;
+    //   const DataObj = new Data(deviceId);
+    //   let data = await DataObj.getLatestData();
+    //   if(data){
+    //     // =============== to get the time stamp column name for different device type ==============
+    //     const deviceType = getDeviceType(deviceId);
+    //     const [deviceTypeInfo]=await Device.getDeviceTypeInfo(deviceType);
+    //     const {ts_col_name}=deviceTypeInfo[0];
 
-    }, Promise.resolve([]));
+    //     const ts_server=data.latestData[0][ts_col_name];
+    //     // ==========================================================================================
+    //    obj = [...obj, { [deviceId]: { status: getStatus(ts_server) } }];
+
+    //   }else{
+    //     obj = [...obj, { [deviceId]: { status: "Offline" } }];
+    //   }
+    //   return obj;
+
+    // }, Promise.resolve([]));
+
+    const result = productsList.reduce((acc, deviceId) => {
+      acc = [...acc, { [deviceId]: { status: "na" } }];
+      return acc;
+    }, []);
 
     console.log({ result: JSON.stringify(result) });
 
@@ -295,6 +302,58 @@ const GetUserDevicesInfoController = async (req, res) => {
   }
 };
 
+const GetUserDevicesStatusController = async (req, res) => {
+  try {
+    const { email } = req.user;
+
+    let returnableObj = [];
+    let products = await Users.getProducts(email);
+    products = products === "" ? "[]" : products;
+
+    let productsList = JSON.parse(products);
+    console.log({ productsList });
+
+    if (productsList.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "No device found in the products list. Please Add your device to access the data",
+      });
+    }
+
+    // First, get the status for each device
+    const result = await productsList.reduce(async (acc, deviceId) => {
+      let obj = await acc;
+      const DataObj = new Data(deviceId);
+      let data = await DataObj.getLatestData();
+      if (data) {
+        // =============== to get the time stamp column name for different device type ==============
+        const deviceType = getDeviceType(deviceId);
+        const [deviceTypeInfo] = await Device.getDeviceTypeInfo(deviceType);
+        const { ts_col_name } = deviceTypeInfo[0];
+
+        const ts_server = data.latestData[0][ts_col_name];
+        // ==========================================================================================
+        obj = {...obj,  [deviceId]:  getStatus(ts_server)  };
+      } else {
+        obj = {...obj,  [deviceId]:   "Offline"  };
+      }
+      return obj;
+
+      // Respond with the final result
+    
+    }, Promise.resolve([]));
+
+    res.status(200).json({ success: true, info: result });
+
+  } catch (er) {
+    console.log(er);
+    res
+      .status(500)
+      .json({ success: false, message: "Something went wrong | " + er });
+  }
+};
+
 const DeleteDeviceController = async (req, res) => {
   try {
     const { deviceIds } = req.body;
@@ -302,8 +361,10 @@ const DeleteDeviceController = async (req, res) => {
 
     console.log({ email });
 
-    if(!deviceIds){
-     return res.status(400).json({ success: false, message: "Device IDs are required"});
+    if (!deviceIds) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Device IDs are required" });
     }
 
     const user = await Users.findOne(email);
@@ -322,19 +383,19 @@ const DeleteDeviceController = async (req, res) => {
 
     products = JSON.parse(products);
 
-    if ( !deviceIds.every(deviceId=>products.includes(deviceId))) {
+    if (!deviceIds.every((deviceId) => products.includes(deviceId))) {
       return res.status(400).json({
         success: false,
         message: "Device not found in your device list",
       });
     }
 
-    let remainingDevices=[];
-   
+    let remainingDevices = [];
 
-      remainingDevices = products.filter((existingDevice) => !deviceIds.includes(existingDevice));
-      console.log({ remainingDevices });
-  
+    remainingDevices = products.filter(
+      (existingDevice) => !deviceIds.includes(existingDevice)
+    );
+    console.log({ remainingDevices });
 
     const result = await Users.addProduct(email, remainingDevices);
     console.log({ result });
@@ -361,4 +422,5 @@ module.exports = {
   GetDeviceInfoController,
   DeleteDeviceController,
   GetUserDevicesInfoController,
+  GetUserDevicesStatusController
 };

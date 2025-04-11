@@ -35,16 +35,16 @@ const GetLatestData = async (req, res) => {
     let latestDataObj = await DataObj.getLatestData();
     console.log({ latestDataObj });
 
-    if(!latestDataObj){
+    if (!latestDataObj) {
       return res.status(501).json({
-        success:false,
-        message:"No data is currently available for this device"
-      })
+        success: false,
+        message: "No data is currently available for this device",
+      });
     }
     // return;
     const data = latestDataObj.latestData[0];
     console.log({ data });
-  //  return res.status(200).json({ success:"false", data:latestDataObj})
+    //  return res.status(200).json({ success:"false", data:latestDataObj})
     const dailyAverages = latestDataObj.dailyAverages[0];
 
     // let ts_server = "";
@@ -130,7 +130,8 @@ const GetLatestData = async (req, res) => {
               maximum: deviceSettings[key].maximum,
               threshold: deviceSettings[key].threshold,
               value: value,
-              average: dailyAverages && Number(dailyAverages[`${key}`]).toFixed(0),
+              average:
+                dailyAverages && Number(dailyAverages[`${key}`]).toFixed(0),
             };
 
             // console.log(dataObj);
@@ -172,10 +173,15 @@ const GetLatestData = async (req, res) => {
     let gmtOffset = tsServer.getTimezoneOffset() * 60000; // Convert minutes to milliseconds
 
     // gmtOffset=gmtOffset===0?-19800000:gmtOffset;  // this is because  of the server timezone offset is 0.
-  
+
     const adjustedTimestamp = tsServer.getTime() + gmtOffset;
 
-    console.log({gmtOffset, tsServer, adjustedTimestamp, ts:new Date(adjustedTimestamp) });
+    console.log({
+      gmtOffset,
+      tsServer,
+      adjustedTimestamp,
+      ts: new Date(adjustedTimestamp),
+    });
 
     res.status(200).json({
       success: true,
@@ -183,14 +189,65 @@ const GetLatestData = async (req, res) => {
       time: adjustedTimestamp,
       dataAvailabilityYears: years.sort((a, b) => b - a),
       status: getStatus(ts_server),
-      other:{
-        gmtOffset, tsServer, adjustedTimestamp, ts:new Date(adjustedTimestamp) 
-      }
+      other: {
+        gmtOffset,
+        tsServer,
+        adjustedTimestamp,
+        ts: new Date(adjustedTimestamp),
+      },
     });
     // res.status(500).json({success:false,message:"Something Went wrong"})
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error | "+er });
+    res
+      .status(500)
+      .send({ success: false, message: "Internal Server Error | " + er });
+  }
+};
+
+const GetSelectedDeviceStatusAndLocation = async (req, res) => {
+  try {
+    const { email } = req.user;
+    const { deviceId } = req.query;
+    let returnableObj = [];
+    let deviceDataObj = {};
+    const DataObj = new Data(deviceId);
+    let data = await DataObj.getLatestData();
+
+    // =============== to get the time stamp column name for different device type ==============
+    const deviceType = getDeviceType(deviceId);
+    const [deviceTypeInfo] = await Device.getDeviceTypeInfo(deviceType);
+    const { ts_col_name } = deviceTypeInfo[0];
+    const ts_server = data.latestData[0][ts_col_name];
+    // ==========================================================================================
+
+    deviceDataObj = { status: getStatus(ts_server) };
+
+    const [locAndAddress] = await Device.GetDeviceCoordinates(deviceId);
+    const [long, lat, address] = locAndAddress[0].dev_location.split(";");
+
+    // Attach location info to the device's status object
+    deviceDataObj.deviceId = deviceId;
+    deviceDataObj.location = [lat, long];
+    deviceDataObj.address = address;
+
+    const settingsObj = new Settings(email);
+    const [settings] = await settingsObj.getSettings();
+
+    if (settings[0] && settings[0].map_settings) {
+      const settingsList = JSON.parse(settings[0].map_settings);
+      returnableObj = { mapData: [deviceDataObj], mapSettings: settingsList };
+    } else {
+      returnableObj = { mapData: [deviceDataObj] };
+    }
+
+    // Respond with the final result
+    res.status(200).json({ success: true, data: returnableObj });
+  } catch (er) {
+    console.log(er);
+    res
+      .status(500)
+      .send({ success: false, message: "Internal Server Error | " + er });
   }
 };
 
@@ -218,42 +275,40 @@ const GetDeviceStatusAndLocation = async (req, res) => {
       const DataObj = new Data(deviceId);
       let data = await DataObj.getLatestData();
       console.log({ data });
-      if(data){
-     
-      data.latestData[0].ts_server;
+      if (data) {
+        data.latestData[0].ts_server;
 
-      // =============== to get the time stamp column name for different device type ==============
-      const deviceType = getDeviceType(deviceId);
-      const [deviceTypeInfo] = await Device.getDeviceTypeInfo(deviceType);
-      const { ts_col_name } = deviceTypeInfo[0];
-      const ts_server = data.latestData[0][ts_col_name];
-      // ==========================================================================================
+        // =============== to get the time stamp column name for different device type ==============
+        const deviceType = getDeviceType(deviceId);
+        const [deviceTypeInfo] = await Device.getDeviceTypeInfo(deviceType);
+        const { ts_col_name } = deviceTypeInfo[0];
+        const ts_server = data.latestData[0][ts_col_name];
+        // ==========================================================================================
 
-      // let ts_server = "";
+        // let ts_server = "";
 
-      // if (deviceType === "ENE"  || deviceType === "FLM") {
-      //   ts_server = data.latestData[0].ts_server;
-      // }
-      // else if(deviceType==="GWR"){
-      //   ts_server = data.latestData[0].date
-      // }
-      // else if(deviceType==="IAQ"){
-      //   ts_server = data.latestData[0].date_time
-      // }
-      // else if(deviceType==="WMS"){
-      //   ts_server = data.latestData[0]._13
-      // }
-      // else if(deviceType==="FMU"){
-      //   ts_server = data.latestData[0].ts
-      // }
-      // else if(deviceType==="PIZ"){
-      //   ts_server = data.latestData[0].ts
-      // }
+        // if (deviceType === "ENE"  || deviceType === "FLM") {
+        //   ts_server = data.latestData[0].ts_server;
+        // }
+        // else if(deviceType==="GWR"){
+        //   ts_server = data.latestData[0].date
+        // }
+        // else if(deviceType==="IAQ"){
+        //   ts_server = data.latestData[0].date_time
+        // }
+        // else if(deviceType==="WMS"){
+        //   ts_server = data.latestData[0]._13
+        // }
+        // else if(deviceType==="FMU"){
+        //   ts_server = data.latestData[0].ts
+        // }
+        // else if(deviceType==="PIZ"){
+        //   ts_server = data.latestData[0].ts
+        // }
 
-      obj = [...obj, { [deviceId]: { status: getStatus(ts_server) } }];
-      return obj;
-      }
-      else{
+        obj = [...obj, { [deviceId]: { status: getStatus(ts_server) } }];
+        return obj;
+      } else {
         return obj;
       }
     }, Promise.resolve([]));
@@ -294,7 +349,9 @@ const GetDeviceStatusAndLocation = async (req, res) => {
     res.status(200).json({ success: true, data: returnableObj });
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error | "+er });
+    res
+      .status(500)
+      .send({ success: false, message: "Internal Server Error | " + er });
   }
 };
 
@@ -403,6 +460,9 @@ const GetLastDataByDuration = async (req, res) => {
     let result = await Data.getLastDataByDuration(deviceId, duration);
     // console.log({ data });
 
+    if(!result.data[0]){
+      return
+    }
     const paraInfo = await Device.getMultiParaInfo([
       ...Object.keys(result.data[0]),
     ]);
@@ -412,7 +472,7 @@ const GetLastDataByDuration = async (req, res) => {
     let [setting] = await settings.getSettings();
     setting = setting[0];
     console.log({ setting });
-    const userPrefferedParaInfo =setting ? JSON.parse( setting.para_info ) : {};
+    const userPrefferedParaInfo = setting ? JSON.parse(setting.para_info) : {};
     console.log({ userPrefferedParaInfo });
     console.log({ uppiUser: userPrefferedParaInfo[deviceId] });
 
@@ -480,7 +540,9 @@ const GetLastDataByDuration = async (req, res) => {
     res.status(200).json({ success: true, data: avgData, deviceId });
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error | "+er });
+    res
+      .status(500)
+      .send({ success: false, message: "Internal Server Error | " + er });
   }
 };
 
@@ -532,7 +594,7 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
     let [setting] = await settings.getSettings();
     setting = setting[0];
     console.log({ setting });
-    const userPrefferedParaInfo =setting ? JSON.parse( setting.para_info ) : {};
+    const userPrefferedParaInfo = setting ? JSON.parse(setting.para_info) : {};
 
     // if user has set preferred parameters, use them
     const paraObj = paraInfo[0].reduce((acc, info) => {
@@ -584,7 +646,6 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
         acc = { ...acc, ..._obj };
         return acc;
       }, {});
-
       console.log(data);
 
       return data;
@@ -593,13 +654,14 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
     res.status(200).json({ success: true, data: customReport, deviceId });
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error" });
+    res.status(500).send({ success: false, message: "Internal Server Error", detail:er });
   }
 };
 
 module.exports = {
   GetLatestData,
   GetDeviceStatusAndLocation,
+  GetSelectedDeviceStatusAndLocation,
   GetDataPointsPerYear,
   GetLastAvgDataByDays,
   GetLastDataByDuration,

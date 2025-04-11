@@ -85,7 +85,7 @@ class Data {
   }
 
   async executeDeviceFunction(method, ...args) {
-    const deviceType = getDeviceType(args[0]); // Assuming deviceId is the first argument
+    const deviceType = getDeviceType(args[0]).toString().toUpperCase(); // Assuming deviceId is the first argument
     const deviceClass = this.#deviceMapping[deviceType];
     console.log({deviceClass})
     if (method === "getLatestData") {

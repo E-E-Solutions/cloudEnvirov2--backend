@@ -7,7 +7,7 @@ const {
   GetDeviceInfoController,
   DeleteDeviceController,
   GetUserDevicesInfoController,
-  UpdateLocationController,
+  UpdateLocationController,GetUserDevicesStatusController
 } = require("../controllers/DeviceController");
 
 // Import controller functions for handling authentication routes
@@ -16,6 +16,7 @@ const router = express.Router(); // Create a new express router instance
 
 // Define a POST route for the login path
 router.get("/", GetDeviceInfoController);
+router.get("/status", GetUserDevicesStatusController);
 router.patch("/addDevice", AddDeviceController);
 router.patch("/updateAlias", UpdateAliasController);
 router.patch("/updateLocation", UpdateLocationController);

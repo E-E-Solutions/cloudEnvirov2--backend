@@ -14,6 +14,9 @@ class ENE {
         // Fetch the latest row
         const latestRow = await db.query(latestRowQuery, [this.deviceId]);
 
+        console.log({latestRow, deviceId:this.deviceId})
+
+
         if (latestRow[0].length > 0) {
           const latestData = latestRow[0];
 

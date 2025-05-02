@@ -1,5 +1,8 @@
 // Import express-async-errors to handle async errors in Express routes
 require("express-async-errors");
+const path = require('path'); // <-- Add this line
+
+
 
 // Import the express module
 const express = require("express");
@@ -30,8 +33,11 @@ const userRoute = require("./routes/AuthRoute");
 const deviceRoute = require("./routes/DeviceRoute");
 const dataRoute = require("./routes/DataRoute");
 const settingRoute = require("./routes/SettingRoute");
+const imageRoute = require("./routes/ImageRoute");
 const { authenticateUser } = require("./middleware/authentication");
 
+// For Express
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Use cors middleware to enable CORS with various options
 app.use(cors());
 
@@ -57,6 +63,7 @@ app.use("/api/v1/user", userRoute);
 app.use("/api/v1/device", authenticateUser, deviceRoute);
 app.use("/api/v1/data", authenticateUser, dataRoute);
 app.use("/api/v1/setting", authenticateUser, settingRoute);
+app.use("/api/v1/image", authenticateUser, imageRoute);
 
 // Use custom error handling middleware
 app.use(errorHandlerMiddleware);
@@ -68,3 +75,4 @@ app.use(notFoundMiddleware);
 app.listen(port, () => {
   console.log(`Server is listening at http://localhost:${port}`);
 });
+

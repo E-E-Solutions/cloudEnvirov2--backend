@@ -13,7 +13,8 @@ const {
   forgetPasswordController,
   updateFirmInfoController,
   googleLoginController,
-  registerWithGoogleController
+  registerWithGoogleController,
+  verifyOtpController
 } = require("../controllers/AuthController");
 const { ValidateDeviceController } = require("../controllers/DeviceController");
 
@@ -31,7 +32,7 @@ router.patch("/forgetPassword", forgetPasswordController);
 
 router.patch("/changePassword",  authenticateUser, changePasswordController);
 router.patch("/updateFirmInfo",  authenticateUser, updateFirmInfoController);
-// router.post("/verifyOtp", verifyOtpController);
+router.post("/verifyOtp", verifyOtpController);
 
 // Define a POST route for the register path
 // This route uses the authenticateUser middleware to ensure the user is authenticated

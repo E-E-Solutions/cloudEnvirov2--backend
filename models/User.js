@@ -3,7 +3,7 @@ const crypto = require("crypto");
 const {randomInt} = require("../utils/common")
 
 module.exports = class Users {
-  constructor(firmName, password, emailId, productsList, contactNo, address) {
+  constructor(firmName, password, emailId, productsList, contactNo, address,roleId) {
     this.emailId = emailId;
     this.password = password;
     this.name = firmName;
@@ -11,6 +11,7 @@ module.exports = class Users {
     this.productsList = productsList;
     this.contactNo = contactNo;
     this.address = address;
+    this.roleId  = roleId
   }
 
   // Method to save user details in the database
@@ -26,11 +27,12 @@ module.exports = class Users {
           address: this.address,
           contactNo: this.contactNo,
           firmName: this.firmName,
+          roleId: this.roleId
         });
 
         // Execute the SQL query
         const [rows] = await db.execute(
-          "INSERT INTO user_ (name, email, password, products_list, address, contact, salutation, firm_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO user_ (name, email, password, products_list, address, contact, salutation, firm_name,role_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)",
           [
             this.name,
             this.emailId,
@@ -40,6 +42,7 @@ module.exports = class Users {
             this.contactNo,
             "M/S",
             this.firmName || "", // Default to empty string if firmName is null/undefined
+            this.roleId
           ]
         );
         resolve(rows);

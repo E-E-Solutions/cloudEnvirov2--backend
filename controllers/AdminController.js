@@ -77,7 +77,7 @@ const findAllUsersController = async (req, res) => {
 
     // Fetch paginated users
     const [users] = await Admin.fetchPaginatedUsers(limit, offset);
-
+     
     // Fetch role names and attach to each user
     const formattedUsers = await Promise.all(
       users.map(async (user) => {
@@ -89,15 +89,14 @@ const findAllUsersController = async (req, res) => {
           address: user.address,
           firmName: user.firm_name,
           productsList: user.products_list,
-          role: role || "N/A", // fallback in case role is null
+          isVerified: !!user.isVerified, 
+          role: role || "N/A",
         };
       })
     );
 
-    // Get total count
     const [[{ count }]] = await Admin.countUsers();
 
-    // Respond with final data
     res.status(200).json({
       success: true,
       message: "Users fetched successfully",
@@ -142,12 +141,9 @@ const findAllUsersController = async (req, res) => {
       }
   
       const roleId = user.role_id;
-      const role = await Admin.findRole(roleId);
-      console.log("role",role)
-      // Remove from main user table
+      const role = await Admin.findRole(roleId)
       const response = await Admin.removeUser(email);
   
-      // If reseller, remove from reseller_info and all its linked reseller_user_info
       if (role === "reseller") {
         await Admin.removeReseller(email); 
         await Admin.removeAllResellerUsers(email); 

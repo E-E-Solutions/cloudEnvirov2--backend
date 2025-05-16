@@ -3,7 +3,7 @@ const crypto = require("crypto");
 const {randomInt} = require("../utils/common")
 
 module.exports = class Users {
-  constructor(firmName, password, emailId, productsList, contactNo, address) {
+  constructor(firmName, password, emailId, productsList, contactNo, address, isVerified = undefined) {
     this.emailId = emailId;
     this.password = password;
     this.name = firmName;
@@ -11,13 +11,27 @@ module.exports = class Users {
     this.productsList = productsList;
     this.contactNo = contactNo;
     this.address = address;
+    this.isVerified = isVerified;
   }
 
   // Method to save user details in the database
   save() {
     return new Promise(async (resolve, reject) => {
       try {
-        // Log the values before executing the query
+        const baseQuery = "INSERT INTO user_ (name, email, password, products_list, address, contact, salutation, firm_name";
+        const baseValues = [this.name, this.emailId, this.password, JSON.stringify(this.productsList), this.address, this.contactNo, "M/S", this.firmName || ""];
+
+        // If isVerified is provided, include it in the query
+        let finalQuery = baseQuery;
+        let finalValues = baseValues;
+
+        if (typeof this.isVerified !== "undefined") {
+          finalQuery += ", isVerified";
+          finalValues.push(this.isVerified);
+        }
+
+        finalQuery += ") VALUES (?, ?, ?, ?, ?, ?, ?, ?" + (typeof this.isVerified !== "undefined" ? ", ?" : "") + ")";
+
         console.log({
           name: this.name,
           emailId: this.emailId,
@@ -26,28 +40,17 @@ module.exports = class Users {
           address: this.address,
           contactNo: this.contactNo,
           firmName: this.firmName,
+          isVerified: this.isVerified,
         });
 
-        // Execute the SQL query
-        const [rows] = await db.execute(
-          "INSERT INTO user_ (name, email, password, products_list, address, contact, salutation, firm_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [
-            this.name,
-            this.emailId,
-            this.password,
-            JSON.stringify(this.productsList),
-            this.address,
-            this.contactNo,
-            "M/S",
-            this.firmName || "", // Default to empty string if firmName is null/undefined
-          ]
-        );
+        const [rows] = await db.execute(finalQuery, finalValues);
         resolve(rows);
       } catch (error) {
         reject(error);
       }
     });
   }
+
 
   static findOne(emailId) {
     return db.execute("SELECT * FROM user_ WHERE email = ?", [emailId]);
@@ -70,8 +73,14 @@ module.exports = class Users {
   static changePassword(emailId, oldPassword, newPassword) {
     return db.execute("UPDATE user_ SET password = ? WHERE email = ? AND password = ?", [newPassword, emailId, oldPassword]);
   }
+  static changeResellerUserPassword(emailId, oldPassword, newPassword) {
+    return db.execute("UPDATE user_ SET password = ? WHERE email = ? AND password = ?", [newPassword, emailId, oldPassword]);
+  }
   static forgetPassword(emailId, newPassword) {
     return db.execute("UPDATE user_ SET password = ? WHERE email = ? ", [newPassword, emailId]);
+  }
+  static forgetResellerUserPassword(emailId, newPassword) {
+    return db.execute("UPDATE reseller_user_info SET password = ? WHERE email = ? ", [newPassword, emailId]);
   }
 
   static async getProducts(emailId) {

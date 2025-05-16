@@ -172,14 +172,27 @@ return db.execute(
           static fetchDevices(){
             return db.execute(`SELECT * FROM id_create_info`)
           }
-          static addUserByAdmin(email,password,roleId,deviceIds){
-             if (deviceIds && Array.isArray(deviceIds) && deviceIds.length > 0) {
-                                  const deviceIdsJson = JSON.stringify(deviceIds);
-                                  return db.execute(`INSERT INTO user_ (email,password,role_id,products_list) VALUES (?,?,?,?)`,
-                                    [ email, password,roleId,deviceIdsJson]
-                                  );
-                                }
+          static addUserByAdmin(email, password, roleId, deviceIds) {
+            if (!email || !password || !roleId) {
+              return Promise.reject(
+                new Error("Missing required fields: email, password, or roleId")
+              );
+            }
+          
+            if (Array.isArray(deviceIds) && deviceIds.length > 0) {
+              const deviceIdsJson = JSON.stringify(deviceIds);
+              return db.execute(
+                `INSERT INTO user_ (email, password, role_id, products_list) VALUES (?, ?, ?, ?)`,
+                [email, password, roleId, deviceIdsJson]
+              );
+            } else {
+              return db.execute(
+                `INSERT INTO user_ (email, password, role_id) VALUES (?, ?, ?)`,
+                [email, password, roleId]
+              );
+            }
           }
+          
            static async checkDevice ( deviceId){
               return db.execute("SELECT * FROM id_create_info WHERE device_id = ? ", [deviceId])
           }
@@ -203,6 +216,7 @@ return db.execute(
                 [name, email]
               );
             }
-          }          
+          }  
+              
           
 }

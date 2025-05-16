@@ -14,6 +14,8 @@ const { GetDeviceInfo } = require("../models/Device");
 
 const { oauth2client } = require("../utils/googleConfig");
 const Reseller = require("../models/Reseller");
+const Admin = require("../models/Admin");
+
 
 var client = new postmark.ServerClient(process.env.POSTMARK_API_KEY);
 // ======================================================== Login controller ===============================================================
@@ -35,11 +37,9 @@ const loginController = async (req, res) => {
       });
     }
 
-    // Try to fetch user from Users table
     const [userResult] = await Users.findByEmail(email);
     const user = userResult?.[0];
 
-    // If not found, try reseller
     let currentUser = user;
     let isReseller = false;
 
@@ -49,7 +49,89 @@ const loginController = async (req, res) => {
       isReseller = true;
     }
 
-    // If still not found
+    if (!currentUser) {
+      return res.status(400).json({
+        success: false,
+        message: "User does not exist!",
+      });
+    }
+
+    const isPasswordCorrect = currentUser.password === password;
+    if (!isPasswordCorrect) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Credentials",
+      });
+    }
+    // Generate JWT
+    const token = jwt.sign(
+      {
+        email: currentUser.email,
+        password: currentUser.password, 
+        role: isReseller ? "resellerUser" : currentUser.role,
+      },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // Set cookie
+    res.cookie("info-token-with-secret", token, {
+      httpOnly: true,
+      maxAge: 36000000,
+    });
+
+    const deviceIds = JSON.parse(currentUser.products_list || "[]");
+
+    const productsList = await deviceIds.reduce(async (acc, deviceId) => {
+      const [response] = await GetDeviceInfo(deviceId);
+      const alias = (await response?.[0]?.alias) || deviceId;
+      acc = [...(await acc), { deviceId, alias }];
+      return acc;
+    }, []);
+  
+    res.status(200).json({
+      success: true,
+      message: "Login successfully",
+      token,
+      productsList,
+      isVerified: !!currentUser.isVerified,
+      address: currentUser.address || null,
+      firmName: currentUser.firm_name || null,
+      contactNo: currentUser.contact || null,
+      email: currentUser.email,
+    });
+
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Something went wrong | " + error.message,
+    });
+  }
+};
+
+const googleLoginController = async (req, res) => {
+  const { code } = req.query;
+  try {
+    if (!code) {
+      throw new Error("Authorization code is missing.");
+    }
+    console.log({ code });
+
+    const { email, name, picture } = await getUserInfoFromGoogle(code);
+
+    const [userResult] = await Users.findByEmail(email);
+    const user = userResult?.[0];
+
+    let currentUser = user;
+    let isReseller = false;
+
+    if (!currentUser) {
+      const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
+      currentUser = resellerResult?.[0];
+      isReseller = true;
+    }
+
     if (!currentUser) {
       return res.status(400).json({
         success: false,
@@ -76,72 +158,7 @@ const loginController = async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    // Set cookie
-    res.cookie("info-token-with-secret", token, {
-      httpOnly: true,
-      maxAge: 36000000,
-    });
-
-    // Parse devices
-    const deviceIds = JSON.parse(currentUser.products_list || "[]");
-
-    const productsList = await deviceIds.reduce(async (acc, deviceId) => {
-      const [response] = await GetDeviceInfo(deviceId);
-      const alias = (await response?.[0]?.alias) || deviceId;
-      acc = [...(await acc), { deviceId, alias }];
-      return acc;
-    }, []);
-
-    // Final response
-    res.status(200).json({
-      success: true,
-      message: "Login successfully",
-      token,
-      productsList,
-      address: currentUser.address || null,
-      firmName: currentUser.firm_name || null,
-      contactNo: currentUser.contact || null,
-      email: currentUser.email,
-    });
-
-  } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Something went wrong | " + error.message,
-    });
-  }
-};
-
-
-const googleLoginController = async (req, res) => {
-  const { code } = req.query;
-  try {
-    if (!code) {
-      throw new Error("Authorization code is missing.");
-    }
-    console.log({ code });
-
-    const { email, name, picture } = await getUserInfoFromGoogle(code);
-
-    const user = await Users.findOne(email);
-    console.log({ user });
-
-    if (!user || !user[0] || !user[0][0]) {
-      return res
-        .status(200)
-        .json({
-          success: true,
-          exists: false,
-          message: "New User, Need some more information",
-        });
-    }
-
-    const token = jwt.sign(
-      { email: user[0][0].email, password: user[0][0].password },
-      process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "1h" }
-    );
+   
 
     res.cookie("info-token-with-secret", token, {
       httpOnly: true,
@@ -230,12 +247,11 @@ const registerWithGoogleController = async (req, res) => {
       address,
     });
     
-    
       const user = new Users(firmName, password, email, productsList, contactNo, address);
       user.save();
-
+      const role = "user";
       const token = jwt.sign(
-        { email, password }, // Customize payload as needed
+        { email, password,role }, // Customize payload as needed
         process.env.ACCESS_TOKEN_SECRET,
         { expiresIn: "1h" }
       );
@@ -251,6 +267,7 @@ const registerWithGoogleController = async (req, res) => {
       address,
       firmName,
       contactNo,
+      email
     });
     // } else {
     //   res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Something went wrong!" });
@@ -301,15 +318,15 @@ const registerController = async (req, res) => {
         .status(400)
         .json({ success: false, message: "User already exist!" });
     }
-
+    const isVerified = true;
     const { success, message } = await Users.verifyOtp(email, otp);
     console.log({ success, message });
     if (success) {
-      const user = new Users(firmName, password, email, productsList, contactNo, address);
+      const user = new Users(firmName, password, email, productsList, contactNo, address,isVerified);
       user.save();
-
+      const role = "user";
       const token = jwt.sign(
-        { email, password }, // Customize payload as needed
+        { email, password,role }, // Customize payload as needed
         process.env.ACCESS_TOKEN_SECRET,
         { expiresIn: "1h" }
       );
@@ -323,6 +340,7 @@ const registerController = async (req, res) => {
         token: token,
         productsList,
         address,
+        email,
         firmName,
         contactNo,
       });
@@ -348,114 +366,133 @@ const forgetPasswordController = async (req, res) => {
   try {
     const { email } = req.query;
     const { password, otp } = req.body;
-    console.log({ reqBody: req.body });
+
     if (!email || !password || !otp) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: "Please provide all the details" });
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Please provide email, password, and OTP",
+      });
     }
 
     if (!validateEmail(email)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email is not valid" });
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Email is not valid",
+      });
     }
 
-    const user = await Users.findOne(email);
-    console.log({ user });
+    // Check in Users table first
+    const [userResult] = await Users.findByEmail(email);
+    let currentUser = userResult?.[0];
+    let isReseller = false;
 
-    // Check if user exist
-    if (!user[0][0]) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User doesn't exist!" });
+    // If not found, check in Reseller table
+    if (!currentUser) {
+      const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
+      currentUser = resellerResult?.[0];
+      isReseller = !!currentUser;
     }
 
+    if (!currentUser) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "User does not exist!",
+      });
+    }
+
+    // Verify OTP
     const { success, message } = await Users.verifyOtp(email, otp);
-    console.log({ success, message });
-    if (success) {
-      const [response] = await Users.forgetPassword(email, password);
-      console.log(response);
-      if (response.affectedRows > 0) {
-        return res
-          .status(StatusCodes.OK)
-          .json({ success: true, message: "Password updated successfully" });
-      }
-
-      // if (response[0]?.affectedRows > 0) {
-      // res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully" });
-      // } else {
-      res
-        .status(StatusCodes.INTERNAL_SERVER_ERROR)
-        .json({ success: false, message: "Something went wrong!" });
-      // }
-    } else {
-      res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: message });
+    if (!success) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: message || "Invalid OTP",
+      });
     }
 
-    // Hash the password
-    // const salt = await bcrypt.genSalt(10);
-    // const hashedPassword = await bcrypt.hash(password, salt);
+    // Update password
+    let response;
+    if (isReseller) {
+      [response] = await Users.forgetResellerUserPassword(email, password);
+    } else {
+      [response] = await Users.forgetPassword(email, password);
+    }
+
+    if (response?.affectedRows > 0) {
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Password updated successfully",
+      });
+    } else {
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Something went wrong!",
+      });
+    }
+
   } catch (error) {
-    console.log({ error });
-    throw new CustomError.BadRequestError(error);
+    console.error("Forget Password Error:", error);
+    throw new CustomError.BadRequestError("Failed to reset password");
   }
-};
+}
+
 
 const changePasswordController = async (req, res) => {
   try {
-    const email = req.user.email;
+    const { email, role } = req.user;
     const { oldPassword, newPassword } = req.body;
 
     if (!email || !oldPassword || !newPassword) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({
-          success: false,
-          message: "Please provide email, oldPassword and newPassword",
-        });
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Please provide email, oldPassword, and newPassword",
+      });
     }
 
-    const user = await Users.findOne(email);
+    // First check in Users table
+    const [userResult] = await Users.findByEmail(email);
+    let currentUser = userResult?.[0];
 
-    console.log({ user: user[0][0] });
-    // Check if user exist
-    if (!user[0][0]) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User does not exist!" });
+    // If not found in Users, check in Reseller
+    if (!currentUser && role === "resellerUser") {
+      const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
+      currentUser = resellerResult?.[0];
     }
 
-    // Hash the password
-    // const salt = await bcrypt.genSalt(10);
-    // const hashedPassword = await bcrypt.hash(password, salt);
-    const updatePassword = await Users.changePassword(
-      email,
-      oldPassword,
-      newPassword
-    );
+    if (!currentUser) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "User does not exist!",
+      });
+    }
 
-    console.log({
-      updatePassword,
-      affectedRows: updatePassword[0].affectedRows,
+    // Call the correct changePassword function
+    let updatePassword;
+    if (role === "resellerUser") {
+      updatePassword = await Reseller.changePassword(email, oldPassword, newPassword);
+    } else {
+      updatePassword = await Users.changePassword(email, oldPassword, newPassword);
+    }
+
+    const affectedRows = updatePassword?.[0]?.affectedRows || 0;
+
+    if (affectedRows === 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Old password doesn't match",
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Password updated successfully",
     });
 
-    if (updatePassword[0].affectedRows === 0) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .json({ success: false, message: "Old password doesn't match" });
-    }
-
-    res
-      .status(200)
-      .json({ success: true, message: "User Password Updated Successfully" });
   } catch (error) {
-    console.log(error);
-    throw new CustomError.BadRequestError(error);
+    console.error("Error changing password:", error);
+    throw new CustomError.BadRequestError("Failed to change password");
   }
 };
+
 
 const updateFirmInfoController = async (req, res) => {
   try {
@@ -603,18 +640,45 @@ const verifyOtpController = async (req, res) => {
 const userExistsController = async (req, res) => {
   try {
     const email = req.query.email;
-    const user = await Users.findOne(email);
-    if (user[0][0]) {
-      return res
-        .status(StatusCodes.OK)
-        .json({ success: false, message: "User already exists" });
+
+    if (!email) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Email is required",
+      });
     }
-    res
-      .status(StatusCodes.OK)
-      .json({ success: true, message: "User does not exist" });
-  } catch (er) {
-    console.log(er);
-    throw new CustomError.BadRequestError(er);
+
+    // Check in Users table
+    const [userRows] = await Users.findOne(email);
+    const user = userRows?.[0];
+
+    if (user) {
+      return res.status(StatusCodes.OK).json({
+        success: false,
+        message: "User already exists",
+      });
+    }
+
+    // If not found, check in Reseller table
+    const [resellerRows] = await Reseller.findResellersUserByEmailId(email);
+    const resellerUser = resellerRows?.[0];
+
+    if (resellerUser) {
+      return res.status(StatusCodes.OK).json({
+        success: false,
+        message: "User already exists",
+      });
+    }
+
+    // User not found in either table
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "User does not exist",
+    });
+
+  } catch (error) {
+    console.error("userExistsController error:", error);
+    throw new CustomError.BadRequestError(error);
   }
 };
 

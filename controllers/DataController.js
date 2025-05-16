@@ -11,7 +11,7 @@ const Settings = require("../models/Settings");
 
 const GetLatestData = async (req, res) => {
   try {
-    const { email } = req.user;
+    const { email,role } = req.user;
     const { deviceId } = req.query;
 
     let existingProducts = await Users.getProducts(email);
@@ -23,13 +23,13 @@ const GetLatestData = async (req, res) => {
     console.log({ existingProducts });
     // existingProducts = JSON.parse(existingProducts);
     console.log(existingProducts.includes(deviceId));
-
-    if (!existingProducts.includes(deviceId)) {
+    if (!existingProducts.includes(deviceId) && role!=="admin") {
       return res.status(401).json({
         success: false,
         message: "You are not authorize to get the data of this device.",
       });
     }
+
 
     const DataObj = new Data(deviceId);
     let latestDataObj = await DataObj.getLatestData();

@@ -10,6 +10,7 @@ const https = require("https"); // Use https for secure requests
 
 // local imports
 const Users = require("../models/User");
+const Admin = require("../models/Admin");
 const CustomError = require("../errors/index");
 const { GetDeviceInfo } = require("../models/Device");
 
@@ -117,7 +118,7 @@ const googleLoginController=async (req, res) => {
     }
   
     const token = jwt.sign(
-      { email: user[0][0].email, password: user[0][0].password },
+      { email: user[0][0].email, password: user[0][0].password,role:user[0][0]?.role },
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: "1h" }
     );
@@ -193,20 +194,29 @@ const registerWithGoogleController = async (req, res) => {
       return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Please provide all the details" });
     }
 
-    const password='1mllf7imc5huf64r66dhqcc0t7jgh57j'
+    const password = "1mllf7imc5huf64r66dhqcc0t7jgh57j";
+    const role = req.body.role || "user";
+    const roleId = await Admin.findRoleId(role)
     console.log({
       firmName, password, email, productsList, contactNo, address
     });
-    
-    
-      const user = new Users(firmName, password, email, productsList, contactNo, address);
-      user.save();
 
-      const token = jwt.sign(
-        { email, password }, // Customize payload as needed
-        process.env.ACCESS_TOKEN_SECRET,
-        { expiresIn: "1h" }
-      );
+    const user = new Users(
+      firmName,
+      password,
+      email,
+      productsList,
+      contactNo,
+      address,
+      roleId
+    );
+    user.save();
+
+    const token = jwt.sign(
+      { email, password,role }, // Customize payload as needed
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "1h" }
+    );
 
       // if (response[0]?.affectedRows > 0) {
       // res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully",  });
@@ -247,6 +257,8 @@ const registerController = async (req, res) => {
     if (!validateEmail(email)) {
       return res.status(400).json({ success: false, message: "Email is not valid" });
     }
+    const role = req.body.role || "user";
+    const roleId = await Admin.findRoleId(role)
 
     const user = await Users.findOne(email);
     console.log({ user });
@@ -255,15 +267,24 @@ const registerController = async (req, res) => {
     if (user[0][0]) {
       return res.status(400).json({ success: false, message: "User already exist!" });
     }
-
+    
     const { success, message } = await Users.verifyOtp(email, otp);
+   
     console.log({ success, message });
     if (success) {
-      const user = new Users(firmName, password, email, productsList, contactNo, address);
+      const user = new Users(
+        firmName,
+        password,
+        email,
+        productsList,
+        contactNo,
+        address,
+        roleId
+      );
       user.save();
 
       const token = jwt.sign(
-        { email, password }, // Customize payload as needed
+        { email, password,role }, // Customize payload as needed
         process.env.ACCESS_TOKEN_SECRET,
         { expiresIn: "1h" }
       );

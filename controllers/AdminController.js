@@ -47,11 +47,11 @@ const searchUserController = async (req, res) => {
           address: user.address,
           firmName: user.firm_name,
           productsList: user.products_list,
+          isVerified: !!user.isVerified, 
           role: role || "N/A",
         };
       })
     );
-
     res.status(200).json({
       success: true,
       message: "Users fetched successfully",
@@ -132,7 +132,7 @@ const findAllUsersController = async (req, res) => {
       }
   
       const userResult = await Users.findOne(email);
-      const user = userResult[0]?.[0];
+      const user = userResult[0][0];
   
       if (!user) {
         return res.status(400).json({
@@ -150,7 +150,7 @@ const findAllUsersController = async (req, res) => {
         await Admin.removeAllResellerUsers(email); 
       }
   
-      if (response?.affectedRows === 0) {
+      if (response.affectedRows === 0) {
         return res.status(404).send({
           success: false,
           message: "No Records Found",
@@ -190,6 +190,15 @@ const findAllUsersController = async (req, res) => {
           success: false,
           message: "At least update one parameter .",
         });
+        const userResult = await Users.findOne(email);
+        const user = userResult[0][0];
+  
+      if (!user) {
+        return res.status(400).json({
+          success: false,
+          message: "User doesn't exist!",
+        });
+      }
   
         const updateUserInfo = await Admin.updateUserInfo(
           email,
@@ -243,7 +252,7 @@ const updateUserDeviceInfoController = async (req, res) => {
       });
     }
     
-    deviceIds = deviceIds.map(id => id?.toUpperCase());
+    deviceIds = deviceIds.map(id => id.toUpperCase());
     
 
     for (const deviceId of deviceIds) {
@@ -271,7 +280,7 @@ const updateUserDeviceInfoController = async (req, res) => {
       });
     }
     const userResult = await Admin.findUserByEmailId(email);
-    const user = userResult[0]?.[0]; // Assuming it's in the format [[{...user}]]
+    const user = userResult[0][0]; 
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -290,7 +299,7 @@ const updateUserDeviceInfoController = async (req, res) => {
     
       // Fetch updated reseller devices
       const [resellerDevicesRows] = await Reseller.fetchResellerDevices(email);
-      const validDeviceIds = JSON.parse(resellerDevicesRows?.[0]?.products_list || "[]");
+      const validDeviceIds = JSON.parse(resellerDevicesRows[0].products_list || "[]");
     
       // Fetch all users under this reseller
       const [resellerUsers] = await Reseller.fetchResellerUsers(email);
@@ -340,7 +349,7 @@ const updateUserDeviceInfoController = async (req, res) => {
     try {
       const { paraName, paraUnit, paraKey, min, max } = req.body;
   
-      if (![paraName, paraUnit, paraKey, min, max].every(v => v?.toString().trim())) {
+      if (![paraName, paraUnit, paraKey, min, max].every(v => v.toString().trim())) {
         return res.status(400).json({
           success: false,
           message: "All fields (Parameter Name, Unit, Key, Min, Max) are required.",
@@ -411,7 +420,7 @@ const updateUserDeviceInfoController = async (req, res) => {
   
       // Fetch existing user
       const userResult = await Users.findOne(email);
-      const user = userResult[0]?.[0];
+      const user = userResult[0][0];
   
       if (!user) {
         return res.status(404).json({
@@ -488,7 +497,7 @@ const updateUserDeviceInfoController = async (req, res) => {
       });
     }
     const userResult = await Admin.findUserByEmailId(email);
-    const user = userResult[0]?.[0]; // Assuming it's in the format [[{...user}]]
+    const user = userResult[0][0]; // Assuming it's in the format [[{...user}]]
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -501,7 +510,7 @@ const updateUserDeviceInfoController = async (req, res) => {
     console.log("role",role)
     try {
       const [rows] = await Admin.getProductsList(email);
-      if (rows?.length === 0) {
+      if (rows.length === 0) {
         return res.status(404).json({
           success: false,
           message: "User not found.",
@@ -513,7 +522,7 @@ const updateUserDeviceInfoController = async (req, res) => {
       await Admin.removeDeviceId(updatedProducts, email);
       if (role === "reseller") {
         const [resellerRows] = await Reseller.fetchResellerDevices(email);
-        const resellerProducts = JSON.parse(resellerRows?.[0]?.products_list || "[]");
+        const resellerProducts = JSON.parse(resellerRows[0].products_list || "[]");
         const updatedResellerProducts = resellerProducts.filter(id => id !== deviceId);
         await Admin.updateResellerDeviceInfo(email, updatedResellerProducts);
   
@@ -589,7 +598,7 @@ const updateUserDeviceInfoController = async (req, res) => {
   
     // Check if user already exists
     const userResult = await Admin.findUserByEmailId(email);
-    const user = userResult[0]?.[0];
+    const user = userResult[0][0];
     if (user) {
       return res.status(409).json({
         success: false,
@@ -609,7 +618,7 @@ const updateUserDeviceInfoController = async (req, res) => {
           });
         }
   
-        deviceIds = deviceIds.map((id) => id?.toUpperCase());
+        deviceIds = deviceIds.map((id) => id.toUpperCase());
   
         // Validate all device IDs first
         for (const deviceId of deviceIds) {

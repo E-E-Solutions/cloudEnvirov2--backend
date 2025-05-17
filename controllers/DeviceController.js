@@ -435,11 +435,11 @@ const DeleteDeviceController = async (req, res) => {
     const normalizedDeviceIds = deviceIds.map((id) => id.toUpperCase());
 
     const [userResult] = await Users.findByEmail(email);
-    let currentUser = userResult?.[0];
+    let currentUser = userResult[0];
 
     if (!currentUser) {
       const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
-      currentUser = resellerResult?.[0];
+      currentUser = resellerResult[0];
     }
 
     if (!currentUser) {

@@ -3,7 +3,7 @@ const requireRole = require('../middleware/roleguard');
 const { addResellerUserController, fetchAllResellerDevices, fetchAllResellerUsers, updateResellerUserDeviceInfoController,updateResellerUserFirmInfoController, removeResellerUserController, removeDeviceFromResellerUser } = require("../controllers/ResellerController");
 const router = express.Router();
 
-router.post("/addReselllerUser",requireRole('reseller'), addResellerUserController); 
+router.post("/addResellerUser",requireRole('reseller'), addResellerUserController); 
 router.get("/fetchResellerDevices",requireRole('reseller'), fetchAllResellerDevices);  
 router.get("/fetchResellerUsers",requireRole('reseller'), fetchAllResellerUsers);  
 router.patch("/updateResellerUserFirmInfo", updateResellerUserFirmInfoController);  

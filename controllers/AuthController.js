@@ -39,14 +39,14 @@ const loginController = async (req, res) => {
     }
 
     const [userResult] = await Users.findByEmail(email);
-    const user = userResult?.[0];
+    const user = userResult[0];
 
     let currentUser = user;
     let isReseller = false;
 
     if (!currentUser) {
       const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
-      currentUser = resellerResult?.[0];
+      currentUser = resellerResult[0];
       isReseller = true;
     }
 
@@ -85,7 +85,7 @@ const loginController = async (req, res) => {
 
     const productsList = await deviceIds.reduce(async (acc, deviceId) => {
       const [response] = await GetDeviceInfo(deviceId);
-      const alias = (await response?.[0]?.alias) || deviceId;
+      const alias = (await response[0].alias) || deviceId;
       acc = [...(await acc), { deviceId, alias }];
       return acc;
     }, []);
@@ -122,14 +122,14 @@ const googleLoginController = async (req, res) => {
     const { email, name, picture } = await getUserInfoFromGoogle(code);
 
     const [userResult] = await Users.findByEmail(email);
-    const user = userResult?.[0];
+    const user = userResult[0];
 
     let currentUser = user;
     let isReseller = false;
 
     if (!currentUser) {
       const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
-      currentUser = resellerResult?.[0];
+      currentUser = resellerResult[0];
       isReseller = true;
     }
 
@@ -152,7 +152,7 @@ const googleLoginController = async (req, res) => {
     const token = jwt.sign(
       {
         email: currentUser.email,
-        password: currentUser.password,role:user[0][0]?.role, 
+        password: currentUser.password,role:user[0][0].role, 
         role: isReseller ? "resellerUser" : currentUser.role,
       },
       process.env.ACCESS_TOKEN_SECRET,
@@ -396,13 +396,13 @@ const forgetPasswordController = async (req, res) => {
 
     // Check in Users table first
     const [userResult] = await Users.findByEmail(email);
-    let currentUser = userResult?.[0];
+    let currentUser = userResult[0];
     let isReseller = false;
 
     // If not found, check in Reseller table
     if (!currentUser) {
       const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
-      currentUser = resellerResult?.[0];
+      currentUser = resellerResult[0];
       isReseller = !!currentUser;
     }
 
@@ -430,7 +430,7 @@ const forgetPasswordController = async (req, res) => {
       [response] = await Users.forgetPassword(email, password);
     }
 
-    if (response?.affectedRows > 0) {
+    if (response.affectedRows > 0) {
       return res.status(StatusCodes.OK).json({
         success: true,
         message: "Password updated successfully",
@@ -463,12 +463,12 @@ const changePasswordController = async (req, res) => {
 
     // First check in Users table
     const [userResult] = await Users.findByEmail(email);
-    let currentUser = userResult?.[0];
+    let currentUser = userResult[0];
 
     // If not found in Users, check in Reseller
     if (!currentUser && role === "resellerUser") {
       const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
-      currentUser = resellerResult?.[0];
+      currentUser = resellerResult[0];
     }
 
     if (!currentUser) {
@@ -486,7 +486,7 @@ const changePasswordController = async (req, res) => {
       updatePassword = await Users.changePassword(email, oldPassword, newPassword);
     }
 
-    const affectedRows = updatePassword?.[0]?.affectedRows || 0;
+    const affectedRows = updatePassword[0].affectedRows || 0;
 
     if (affectedRows === 0) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -522,10 +522,10 @@ const updateFirmInfoController = async (req, res) => {
     let fetchUserDetails;
     if (role === "resellerUser") {
       const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
-      fetchUserDetails = resellerResult?.[0];
+      fetchUserDetails = resellerResult[0];
     } else {
       const [userResult] = await Users.findByEmail(email);
-      fetchUserDetails = userResult?.[0];
+      fetchUserDetails = userResult[0];
     }
 
     if (!fetchUserDetails) {
@@ -552,7 +552,7 @@ const updateFirmInfoController = async (req, res) => {
       );
     }
 
-    if (updateResult?.[0]?.affectedRows === 0) {
+    if (updateResult[0].affectedRows === 0) {
       return res.status(404).json({
         success: false,
         message: "Firm information could not be updated",
@@ -563,10 +563,10 @@ const updateFirmInfoController = async (req, res) => {
     let updatedUser;
     if (role === "resellerUser") {
       const [resellerUpdated] = await Reseller.findResellersUserByEmailId(email);
-      updatedUser = resellerUpdated?.[0];
+      updatedUser = resellerUpdated[0];
     } else {
       const [userUpdated] = await Users.findOne(email);
-      updatedUser = userUpdated?.[0];
+      updatedUser = userUpdated[0];
     }
 
     if (!updatedUser) {
@@ -663,7 +663,7 @@ const userExistsController = async (req, res) => {
 
     // Check in Users table
     const [userRows] = await Users.findOne(email);
-    const user = userRows?.[0];
+    const user = userRows[0];
 
     if (user) {
       return res.status(StatusCodes.OK).json({
@@ -674,7 +674,7 @@ const userExistsController = async (req, res) => {
 
     // If not found, check in Reseller table
     const [resellerRows] = await Reseller.findResellersUserByEmailId(email);
-    const resellerUser = resellerRows?.[0];
+    const resellerUser = resellerRows[0];
 
     if (resellerUser) {
       return res.status(StatusCodes.OK).json({

@@ -13,7 +13,7 @@ const AddDeviceController = async (req, res) => {
     const { email,role } = req.user;
     let { deviceId, serialNo } = req.body;
     const [userResult] = await Users.findByEmail(email);
-        const user = userResult?.[0];
+        const user = userResult[0];
     
         // If not found, try reseller
         let currentUser = user;
@@ -21,7 +21,7 @@ const AddDeviceController = async (req, res) => {
     
         if (!currentUser) {
           const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
-          currentUser = resellerResult?.[0];
+          currentUser = resellerResult[0];
           isReseller = true;
         }
     

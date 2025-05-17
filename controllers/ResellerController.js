@@ -13,7 +13,7 @@ const addResellerUserController = async (req, res) => {
     try {
       // Check if user already exists
       const userResult = await Reseller.findResellersUserByEmailId(userEmail);
-      const user = userResult[0]?.[0];
+      const user = userResult[0][0];
       if (user) {
         return res.status(409).json({
           success: false,
@@ -22,11 +22,11 @@ const addResellerUserController = async (req, res) => {
       }
   
       // Normalize deviceIds to uppercase
-      deviceIds = deviceIds.map((id) => id?.toUpperCase());
+      deviceIds = deviceIds.map((id) => id.toUpperCase());
   
       // Fetch reseller's allowed device list
       const resellerDevicesResult = await Reseller.fetchResellerDevices(email);
-      const productsListRaw = resellerDevicesResult[0]?.[0]?.products_list;
+      const productsListRaw = resellerDevicesResult[0][0].products_list;
   
       if (!productsListRaw) {
         return res.status(400).json({
@@ -37,7 +37,7 @@ const addResellerUserController = async (req, res) => {
   
       let allowedDeviceIds;
       try {
-        allowedDeviceIds = JSON.parse(productsListRaw).map(id => id?.toUpperCase());
+        allowedDeviceIds = JSON.parse(productsListRaw).map(id => id.toUpperCase());
       } catch (err) {
         return res.status(500).json({
           success: false,
@@ -155,7 +155,7 @@ const addResellerUserController = async (req, res) => {
         });
       }
       
-      deviceIds = deviceIds.map(id => id?.toUpperCase());
+      deviceIds = deviceIds.map(id => id.toUpperCase());
       
   
       for (const deviceId of deviceIds) {
@@ -183,7 +183,7 @@ const addResellerUserController = async (req, res) => {
         });
       }
       const userResult = await Reseller.findResellerUser(email,userEmail);
-      const user = userResult[0]?.[0]; 
+      const user = userResult[0][0]; 
       if (!user) {
         return res.status(404).json({
           success: false,
@@ -286,7 +286,7 @@ const addResellerUserController = async (req, res) => {
     
         const response = await Reseller.removeResellerUser(email);
     
-        if (response?.affectedRows === 0) {
+        if (response.affectedRows === 0) {
           return res.status(404).send({
             success: false,
             message: "No Records Found",

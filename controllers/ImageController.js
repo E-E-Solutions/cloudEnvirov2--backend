@@ -297,96 +297,72 @@ const updateDeviceController = async (req, res, next) => {
   }
 };
 
- const insertImageController = async (req, res, next) => {
-  const { email } = req.user || {};
-  const { imageName } = req.body;
-  const file = req.file; // multer
-
-  // 1. Validate
-  if (!email) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Email is required" });
-  }
-  if (!imageName) {
-    return res
-      .status(400)
-      .json({ success: false, message: "imageName is required" });
-  }
-  if (!file || !file.path) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Image file is required" });
+const insertImageController = async (req, res) => {
+  const emailId = req.user.email;
+  if (!emailId) {
+    return res.status(400).json({ success: false, message: "Email is required" });
   }
 
   try {
-    // 2. Insert
     const imageId = uuidv4();
-    const imagePath = file.path;
-    await Image.addImage(email, imageId, imageName, imagePath);
+    const imageName = req.body.imageName;
+    const filePath = req.file.path; 
+    console.log(emailId, imageId, imageName, filePath)
+    await Image.addImage(emailId, imageId, imageName, filePath);
 
-    // 3. Success
-    return res.status(201).json({
-      success: true,
-      message: "Image inserted successfully",
-      data: { imageId, imageName, imagePath },
-    });
-  } catch (err) {
-    console.error("insertImageController:", err);
-    return next
-      ? next(err)
-      : res.status(500).json({
-          success: false,
-          message: "Error inserting image",
-        });
-  }
-};
-
- const findImageDetailsController = async (req, res, next) => {
-  const { email } = req.user || {};
-
-  // 1. Validate
-  if (!email) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Email is required" });
-  }
-
-  try {
-    // 2. Fetch
-    const [images] = await Image.findAllImageDetails(email);
-
-    // 3. Nothing found?
-    if (!images.length) {
-      return res.status(404).json({
-        success: false,
-        message: "No images found for this user",
-      });
-    }
-
-    // 4. Format
-    const data = images.map(({ image_id, image_name, image_path }) => ({
-      imageId: image_id,
-      imageName: image_name,
-      imagePath: image_path,
-    }));
-
-    // 5. Success
     return res.status(200).json({
       success: true,
-      message: "Images fetched successfully",
-      data,
+      message: "Image inserted successfully",
+      imageId,
+      imageName,
+      imagePath: filePath,
     });
-  } catch (err) {
-    console.error("findImageDetailsController:", err);
-    return next
-      ? next(err)
-      : res.status(500).json({
-          success: false,
-          message: "Error fetching images",
-        });
+  } catch (error) {
+    console.error('Error inserting image:', error.message);
+    return res.status(500).json({ success: false, message: "Error inserting image", error: error.message });
   }
 };
+
+const findImageDetailsController = async (req,res) =>{
+  try{
+    const emailId = req.user.email;
+    if(!emailId){
+      res.status(400)
+      .json({ success: false, message: "Email is required" });;
+      throw new Error("Email is required")
+    }
+
+    const rawData = await Image.findAllImageDetails(emailId);
+    const images = rawData[0]; 
+
+    const formattedData = images.map(item => ({
+      imageId: item.image_id,
+      imageName: item.image_name,
+      imagePath: item.image_path 
+    }));
+    
+    if (rawData.length !== 0) {
+      return res.status(200).json({
+        success: true,
+        message: "Images fetched successfully",
+        data: formattedData,
+      });
+    }
+    
+    return res.status(404).json({
+      success: false,
+      message: "No images found for this user",
+    });
+    
+  } catch (error) {
+    console.error("Error fetching all images:", error);
+    res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching images",
+      error: error.message || error,
+    });
+  }
+}
 
 
 module.exports = {

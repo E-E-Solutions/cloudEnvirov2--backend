@@ -35,6 +35,7 @@ const dataRoute = require("./routes/DataRoute");
 const settingRoute = require("./routes/SettingRoute");
 const imageRoute = require("./routes/ImageRoute");
 const adminRoute = require("./routes/AdminRoute");
+const resellerRoute = require("./routes/ResellerRoute");
 const { authenticateUser } = require("./middleware/authentication");
 
 // For Express
@@ -66,6 +67,7 @@ app.use("/api/v1/data", authenticateUser, dataRoute);
 app.use("/api/v1/setting", authenticateUser, settingRoute);
 app.use("/api/v1/image", authenticateUser, imageRoute);
 app.use("/api/v1/admin", authenticateUser, adminRoute);
+app.use("/api/v1/reseller", authenticateUser, resellerRoute);
 
 
 // Use custom error handling middleware

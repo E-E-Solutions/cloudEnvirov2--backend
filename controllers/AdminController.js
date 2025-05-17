@@ -1,6 +1,7 @@
 const Users = require("../models/User");
-const Device = require("../models/Device");
 const Admin = require("../models/Admin");
+const Reseller = require("../models/Reseller");
+const { StatusCodes } = require("http-status-codes");
 
 // to search users
 const searchUserController = async (req, res) => {
@@ -77,7 +78,7 @@ const findAllUsersController = async (req, res) => {
 
     // Fetch paginated users
     const [users] = await Admin.fetchPaginatedUsers(limit, offset);
-
+     
     // Fetch role names and attach to each user
     const formattedUsers = await Promise.all(
       users.map(async (user) => {
@@ -89,15 +90,14 @@ const findAllUsersController = async (req, res) => {
           address: user.address,
           firmName: user.firm_name,
           productsList: user.products_list,
-          role: role || "N/A", // fallback in case role is null
+          isVerified: !!user.isVerified, 
+          role: role || "N/A",
         };
       })
     );
 
-    // Get total count
     const [[{ count }]] = await Admin.countUsers();
 
-    // Respond with final data
     res.status(200).json({
       success: true,
       message: "Users fetched successfully",
@@ -118,8 +118,6 @@ const findAllUsersController = async (req, res) => {
     });
   }
 };
-
-
   
   // to remove user
   const removeUserController = async (req, res) => {
@@ -132,14 +130,25 @@ const findAllUsersController = async (req, res) => {
           message: "Email is required",
         });
       }
-      const user = await Users.findOne(email);
-      if (!user[0][0]) {
-        return res
-          .status(400)
-          .json({ success: false, message: "User doesn't exist!" });
+  
+      const userResult = await Users.findOne(email);
+      const user = userResult[0]?.[0];
+  
+      if (!user) {
+        return res.status(400).json({
+          success: false,
+          message: "User doesn't exist!",
+        });
       }
   
+      const roleId = user.role_id;
+      const role = await Admin.findRole(roleId)
       const response = await Admin.removeUser(email);
+  
+      if (role === "reseller") {
+        await Admin.removeReseller(email); 
+        await Admin.removeAllResellerUsers(email); 
+      }
   
       if (response?.affectedRows === 0) {
         return res.status(404).send({
@@ -148,20 +157,21 @@ const findAllUsersController = async (req, res) => {
         });
       }
   
-      res.status(200).send({
+      return res.status(200).send({
         success: true,
         message: "Deleted User Successfully",
       });
-      
+  
     } catch (error) {
       console.error("Error deleting user:", error);
       res.status(500).send({
         success: false,
-        message: "An Error occures while deleting user ",
+        message: "An error occurred while deleting user",
         error: error.message || error,
       });
     }
   };
+  
   
   // update user info
   const updateUserInfoController = async (req, res) => {
@@ -213,7 +223,6 @@ const findAllUsersController = async (req, res) => {
       });
     }
   }
-  // admin apis
 // to update deviceId of user
 const updateUserDeviceInfoController = async (req, res) => {
   try {
@@ -261,13 +270,53 @@ const updateUserDeviceInfoController = async (req, res) => {
         message: "Duplicate device IDs are not allowed.",
       });
     }
-    
-    const updateUserDeviceInfo = await Admin.updateUserDeviceInfo(email, deviceIds);
-
-    if (updateUserDeviceInfo[0].affectedRows === 0) {
+    const userResult = await Admin.findUserByEmailId(email);
+    const user = userResult[0]?.[0]; // Assuming it's in the format [[{...user}]]
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: "Can't update device info!",
+        message: "User not found.",
+      });
+    }
+
+    const roleId = user.role_id;
+    const role = await Admin.findRole(roleId);
+    
+    let updateResult;
+    if (role === "reseller") {
+      // Update reseller and reseller_user_info products_list
+      updateResult = await Admin.updateResellerDeviceInfo(email, deviceIds);
+      await Admin.updateUserDeviceInfo(email, deviceIds);
+    
+      // Fetch updated reseller devices
+      const [resellerDevicesRows] = await Reseller.fetchResellerDevices(email);
+      const validDeviceIds = JSON.parse(resellerDevicesRows?.[0]?.products_list || "[]");
+    
+      // Fetch all users under this reseller
+      const [resellerUsers] = await Reseller.fetchResellerUsers(email);
+    
+      // Loop through each user and clean up their products list
+      for (const user of resellerUsers) {
+        const userEmail = user.email;
+        const userDevices = JSON.parse(user.products_list || "[]");
+    
+        // Keep only the devices still valid under this reseller
+        const filteredDevices = userDevices.filter(deviceId => validDeviceIds.includes(deviceId));
+    
+        // If filtered list is different, update DB
+        if (filteredDevices.length !== userDevices.length) {
+          await Reseller.removeDeviceId(filteredDevices, userEmail);
+        }
+      }
+    }
+     else {
+      updateResult = await Admin.updateUserDeviceInfo(email, deviceIds);
+    }
+
+    if (updateResult[0].affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No matching user found or device info not updated.",
       });
     }
 
@@ -286,7 +335,6 @@ const updateUserDeviceInfoController = async (req, res) => {
     });
   }
 };
-
    
  const AddParametersByAdminController = async (req, res) => {
     try {
@@ -342,44 +390,96 @@ const updateUserDeviceInfoController = async (req, res) => {
     }
   };
   
-  const UpdateRole= async(req,res)=>{
+  const UpdateRole = async (req, res) => {
     try {
-        const { email } = req.query;
-        const { role } = req.body;
-    
-        if (!email) {
+      const { email } = req.query;
+      const { newRole, name } = req.body;
+  
+      if (!email) {
+        return res.status(400).send({
+          success: false,
+          message: "Email is required.",
+        });
+      }
+  
+      if (!newRole) {
+        return res.status(400).send({
+          success: false,
+          message: "New role is required.",
+        });
+      }
+  
+      // Fetch existing user
+      const userResult = await Users.findOne(email);
+      const user = userResult[0]?.[0];
+  
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User doesn't exist!",
+        });
+      }
+  
+      // Get current role name
+      const currentRoleName = await Admin.findRole(user.role_id);
+      const newRoleId = await Admin.findRoleId(newRole);
+  
+      if (!newRoleId) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid new role provided.",
+        });
+      }
+  
+      // Step 1: Update role
+      await Admin.addRole(email, newRoleId);
+  
+      // Step 2: If current role is reseller, clean up reseller data
+      if (currentRoleName === "reseller") {
+        await Admin.removeReseller(email);
+        await Admin.removeAllResellerUsers(email);
+      }
+  
+      // Step 3: If new role is reseller, add reseller entry
+      if (newRole === "reseller") {
+        if (!name) {
           return res.status(400).send({
             success: false,
-            message: "Email is required.",
+            message: "Name is required for reseller role.",
           });
         }
-        const roleId = await Admin.findRoleId(role)
-        if (!roleId) {
-            return res.status(400).send({
-              success: false,
-              message: "no role exists.",
-            });
-        }
-        await Admin.addRole(email, roleId); 
-
-        return res.status(200).json({
-            success: true,
-            message: "Role added successfully.",
+  
+        let deviceIds;
+        try {
+          deviceIds = JSON.parse(user.products_list || "[]");
+        } catch (err) {
+          return res.status(500).json({
+            success: false,
+            message: "Failed to parse device IDs.",
+            error: err.message,
           });
-  }
-  catch (error) {
-    console.error("Error updating role:", error);
-    return res.status(500).json({
-      success: false,
-      message: "An error occurred while updating role.",
-      error: error.message || error,
-    });
-  }
-  }
+        }
+  
+        await Admin.addReseller( name,email, deviceIds);
+      }
+  
+      return res.status(200).json({
+        success: true,
+        message: "Role updated successfully.",
+      });
+    } catch (error) {
+      console.error("Error updating role:", error);
+      return res.status(500).json({
+        success: false,
+        message: "An error occurred while updating role.",
+        error: error.message || error,
+      });
+    }
+  };
+  
   const removeDeviceFromUser = async (req, res) => {
-    
     const { email } = req.query;
-    const {  deviceId } = req.body;
+    const { deviceId } = req.body;
   
     if (!email || !deviceId) {
       return res.status(400).json({
@@ -387,11 +487,20 @@ const updateUserDeviceInfoController = async (req, res) => {
         message: "Email and deviceId are required.",
       });
     }
-  
+    const userResult = await Admin.findUserByEmailId(email);
+    const user = userResult[0]?.[0]; // Assuming it's in the format [[{...user}]]
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    const roleId = user.role_id;
+    const role = await Admin.findRole(roleId);
+    console.log("role",role)
     try {
-      // Step 1: Get the current productsList
-      const [rows] = await Admin.getProductsList(email)
-  
+      const [rows] = await Admin.getProductsList(email);
       if (rows?.length === 0) {
         return res.status(404).json({
           success: false,
@@ -399,18 +508,32 @@ const updateUserDeviceInfoController = async (req, res) => {
         });
       }
   
-      let products = JSON.parse(rows[0].productsList || "[]");
-  
-      // Step 2: Remove the deviceId
+      let products = JSON.parse(rows[0].products_list || "[]");
       const updatedProducts = products.filter(id => id !== deviceId);
+      await Admin.removeDeviceId(updatedProducts, email);
+      if (role === "reseller") {
+        const [resellerRows] = await Reseller.fetchResellerDevices(email);
+        const resellerProducts = JSON.parse(resellerRows?.[0]?.products_list || "[]");
+        const updatedResellerProducts = resellerProducts.filter(id => id !== deviceId);
+        await Admin.updateResellerDeviceInfo(email, updatedResellerProducts);
   
-      // Step 3: Save it back
-     const updated = await Admin.removeDeviceId(updatedProducts,email)
+        const [resellerUsers] = await Reseller.fetchResellerUsers(email);
+  
+        for (const user of resellerUsers) {
+          const userDevices = JSON.parse(user.products_list || "[]");
+          const filteredDevices = userDevices.filter(id => id !== deviceId);
+  
+          if (filteredDevices.length !== userDevices.length) {
+            await Reseller.removeDeviceId(filteredDevices, user.email);
+          }
+        }
+      }
   
       return res.status(200).json({
         success: true,
         message: "Device removed from products list.",
       });
+  
     } catch (error) {
       console.error("Error removing device:", error);
       return res.status(500).json({
@@ -420,6 +543,7 @@ const updateUserDeviceInfoController = async (req, res) => {
       });
     }
   };
+  
   
   const fetchAllDeviceDetails= async(req,res)=>{
     try {
@@ -453,31 +577,85 @@ const updateUserDeviceInfoController = async (req, res) => {
     }  
   }
  
-  const addUser = async(req,res)=>{
-    const {email,password} = req.body
+  const addUser = async (req, res) => {
+    let { email, password, role, deviceIds, name } = req.body;
+  
     if (!email || !password) {
-        return res.status(400).json({
-          success: false,
-          message: "Email and password are required.",
-        });
-      }
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required.",
+      });
+    }
+  
+    // Check if user already exists
+    const userResult = await Admin.findUserByEmailId(email);
+    const user = userResult[0]?.[0];
+    if (user) {
+      return res.status(409).json({
+        success: false,
+        message: "User already exists.",
+      });
+    }
+  
     try {
-        await Admin.addUserByAdmin(email,password); 
-        
-        return res.status(200).json({
-          success: true,
-          message: "User Added Successfully"
-        });
-      
-      } catch (error) {
-        console.error("Error adding user:", error);
-        return res.status(500).json({
-          success: false,
-          message: "An error occurred while adding user.",
-          error: error.message
-        });
-    }  
-  }
+      role = role || "user";
+      const roleId = await Admin.findRoleId(role);
+  
+      if (role === "reseller") {
+        if (!name || !Array.isArray(deviceIds) || deviceIds.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Name and deviceIds (array) are required for resellers.",
+          });
+        }
+  
+        deviceIds = deviceIds.map((id) => id?.toUpperCase());
+  
+        // Validate all device IDs first
+        for (const deviceId of deviceIds) {
+          if (!deviceId) {
+            return res.status(400).json({
+              success: false,
+              message: "Each device must have a valid deviceId.",
+            });
+          }
+          const result = await Admin.checkDevice(deviceId);
+          if (!result[0][0]) {
+            return res.status(400).json({
+              success: false,
+              message: `Device not found: ${deviceId}`,
+            });
+          }
+        }
+  
+        // Check for duplicates
+        const hasDuplicates = new Set(deviceIds).size !== deviceIds.length;
+        if (hasDuplicates) {
+          return res.status(400).json({
+            success: false,
+            message: "Duplicate device IDs are not allowed.",
+          });
+        }
+  
+        await Admin.addUserByAdmin(email, password, roleId,deviceIds);
+        await Admin.addReseller(name, email, deviceIds);
+      } else {
+        await Admin.addUserByAdmin(email, password, roleId);
+      }
+  
+      return res.status(200).json({
+        success: true,
+        message: "User added successfully.",
+      });
+    } catch (error) {
+      console.error("Error adding user:", error);
+      return res.status(500).json({
+        success: false,
+        message: "An error occurred while adding user.",
+        error: error.message,
+      });
+    }
+  };
   
 module.exports = {
     removeUserController,
@@ -491,5 +669,4 @@ module.exports = {
     removeDeviceFromUser,
     fetchAllDeviceDetails,
     addUser,
-
   };

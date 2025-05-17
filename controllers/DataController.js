@@ -11,29 +11,35 @@ const Settings = require("../models/Settings");
 
 const GetLatestData = async (req, res) => {
   try {
-    const { email,role } = req.user;
-    const { deviceId } = req.query;
+    const { email, role } = req.user;
+    const { deviceId: rawDeviceId } = req.query;
+    const deviceId = rawDeviceId.toUpperCase(); // Ensure deviceId is uppercase
 
-    let existingProducts = await Users.getProducts(email);
-
-    console.log({ existingProducts: existingProducts });
-
-    existingProducts = existingProducts === "" ? "[]" : existingProducts;
+    let existingProducts;
+    if (role === "resellerUser") {
+      existingProducts = await Users.getResellerUserProducts(email);
+    } else {
+      existingProducts = await Users.getProducts(email);
+    }
 
     console.log({ existingProducts });
-    // existingProducts = JSON.parse(existingProducts);
-    console.log(existingProducts.includes(deviceId));
-    if (!existingProducts.includes(deviceId) && role!=="admin") {
+
+    existingProducts = existingProducts === "" ? "[]" : existingProducts;
+    // Convert from JSON string if needed
+    existingProducts = typeof existingProducts === "string"
+      ? JSON.parse(existingProducts)
+      : existingProducts;
+
+    if (!existingProducts.includes(deviceId) && role !== "admin") {
       return res.status(401).json({
         success: false,
-        message: "You are not authorize to get the data of this device.",
+        message: "You are not authorized to get the data of this device.",
       });
     }
 
 
     const DataObj = new Data(deviceId);
-    let latestDataObj = await DataObj.getLatestData();
-    console.log({ latestDataObj });
+    const latestDataObj = await DataObj.getLatestData();
 
     if (!latestDataObj) {
       return res.status(501).json({
@@ -41,88 +47,30 @@ const GetLatestData = async (req, res) => {
         message: "No data is currently available for this device",
       });
     }
-    // return;
-    const data = latestDataObj.latestData[0];
-    console.log({ data });
-    //  return res.status(200).json({ success:"false", data:latestDataObj})
-    const dailyAverages = latestDataObj.dailyAverages[0];
 
-    // let ts_server = "";
+    const data = latestDataObj.latestData[0];
+    const dailyAverages = latestDataObj.dailyAverages[0];
 
     const deviceType = getDeviceType(deviceId);
     const [deviceTypeInfo] = await Device.getDeviceTypeInfo(deviceType);
     const { ts_col_name, useless_col } = deviceTypeInfo[0];
     const deleteColumns = JSON.parse(useless_col);
-    deleteColumns.forEach((col) => {
-      delete data[col]; // delete  useless columns like lg, lt, bv,  etc.
-    });
+    deleteColumns.forEach((col) => delete data[col]);
+
     const ts_server = data[ts_col_name];
     delete data[ts_col_name];
-
-    // if (deviceType === "ENE" ||  deviceType === "FLM") {
-    //   ts_server = data.ts_server;
-    //   delete data._id;
-    //   delete data.lg;
-    //   delete data.lt;
-    //   delete data.bv;
-    //   delete data.lon;
-    //   delete data.lat;
-    //   delete data.batVolt;
-    //   delete data.ts_client;
-    //   delete data.ts_server;
-    // } else if (deviceType === "GWR") {
-    //   ts_server = data.date;
-    //   delete data.date;
-    //   delete data.time;
-    //   delete data.id;
-    // } else if (deviceType === "WMS") {
-    //   ts_server = data._13;
-    //   delete data._id;
-    //   delete data._9;
-    //   delete data._10;
-    //   delete data._11;
-    //   delete data._12;
-    //   delete data._13;
-    // }
-    // else if (deviceType === "IAQ") {
-    //   ts_server = data.date_time;
-    //   delete data._id;
-    //   delete data.date_time;
-    //   delete data.date;
-    // }
-    // else if (deviceType === "FMU") {
-    //   ts_server = data.ts;
-    //   delete data._id;
-    //   delete data.bv;
-    //   delete data.ts;
-    // }
-    // else if (deviceType === "PIZ") {
-    //   ts_server = data.ts;
-    //   delete data.id;
-    //   delete data.mobile_number;
-    //   delete data.batt_volt;
-    //   delete data.ts;
-    // }
-
-    console.log({ data });
-    // const ts_client = data.ts_client;
 
     const LatestData = await Promise.all(
       Object.entries(data).map(async ([key, value]) => {
         try {
-          console.log({ para: key });
-
           const settings = new Settings(email);
           let [setting] = await settings.getSettings();
           setting = setting[0];
-          // console.log({ setting });
-
           const paraInfo = setting ? JSON.parse(setting.para_info) : {};
           let deviceSettings = paraInfo[deviceId];
-          // console.log({ deviceSettings });
 
-          if (deviceSettings) {
-            let dataObj = {
+          if (deviceSettings && deviceSettings[key]) {
+            return {
               key,
               name: deviceSettings[key].name,
               unit: deviceSettings[key].unit,
@@ -133,57 +81,33 @@ const GetLatestData = async (req, res) => {
               average:
                 dailyAverages && Number(dailyAverages[`${key}`]).toFixed(0),
             };
-
-            // console.log(dataObj);
-            return dataObj;
           }
 
-          // console.log({ paraInfo });
-
-          let [response] = await Device.getParaInfo(key);
-          response = response[0];
-
-          // console.log({ response });
-          let dataObj = {
+          const [response] = await Device.getParaInfo(key);
+          const responseObj = response[0];
+          return {
             key,
-            name: response.para_name,
-            unit: response.para_unit,
+            name: responseObj.para_name,
+            unit: responseObj.para_unit,
             value: value,
-            minimum: response.min,
-            maximum: response.max,
+            minimum: responseObj.min,
+            maximum: responseObj.max,
           };
-          // console.log({ dataObj });
-          return dataObj;
         } catch (er) {
           console.log(er);
-          return null; // Return null or some fallback value on error
+          return null;
         }
       })
     );
 
-    let [dataObj] = await Data.getDataAvailabilityYears(deviceId);
-    console.log({ dataObj });
-    // dataObj = dataObj[0];
-    let years = dataObj.map((obj) => obj.year);
-    console.log({ years });
+    const [dataObj] = await Data.getDataAvailabilityYears(deviceId);
+    const years = dataObj.map((obj) => obj.year);
 
-    console.log({ LatestData });
-    console.log({ ts_server });
     const tsServer = new Date(ts_server) || ts_server;
-    let gmtOffset = tsServer.getTimezoneOffset() * 60000; // Convert minutes to milliseconds
-
-    // gmtOffset=gmtOffset===0?-19800000:gmtOffset;  // this is because  of the server timezone offset is 0.
-
+    const gmtOffset = tsServer.getTimezoneOffset() * 60000;
     const adjustedTimestamp = tsServer.getTime() + gmtOffset;
 
-    console.log({
-      gmtOffset,
-      tsServer,
-      adjustedTimestamp,
-      ts: new Date(adjustedTimestamp),
-    });
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: LatestData,
       time: adjustedTimestamp,
@@ -196,14 +120,12 @@ const GetLatestData = async (req, res) => {
         ts: new Date(adjustedTimestamp),
       },
     });
-    // res.status(500).json({success:false,message:"Something Went wrong"})
   } catch (er) {
     console.log(er);
-    res
-      .status(500)
-      .send({ success: false, message: "Internal Server Error | " + er });
+    res.status(500).send({ success: false, message: "Internal Server Error | " + er });
   }
 };
+
 
 const GetSelectedDeviceStatusAndLocation = async (req, res) => {
   try {
@@ -256,7 +178,12 @@ const GetDeviceStatusAndLocation = async (req, res) => {
     const { email } = req.user;
 
     let returnableObj = [];
-    let products = await Users.getProducts(email);
+    let products;
+    if (role === "resellerUser") {
+      products = await Users.getResellerUserProducts(email);
+    } else {
+      products = await Users.getProducts(email);
+    }
     products = products === "" ? "[]" : products;
 
     let productsList = JSON.parse(products);

@@ -1,6 +1,6 @@
 const db = require("../db/connection");
 
-module.exports = class Image {
+module.exports = class Admin {
   constructor(email) {
     this.email = email;
   }
@@ -32,6 +32,13 @@ static findUserbyId(userId) {
     console.log({emailId})
     return db.execute('DELETE FROM user_ WHERE email = ?', [emailId]);   
   }
+  static removeReseller(emailId){
+    return db.execute('DELETE FROM reseller_info WHERE email = ?', [emailId]);   
+  }
+  static async removeAllResellerUsers(resellerEmail) {
+    return db.execute("DELETE FROM reseller_user_info WHERE reseller_email = ?", [resellerEmail]);
+  }
+  
   // update user
   static async updateUserInfo( email, password, contact,firmName, address, ) {
     let query = "UPDATE user_ SET";
@@ -91,6 +98,25 @@ static findUserbyId(userId) {
     }
   }
 
+  static async updateResellerDeviceInfo( email, deviceId, ) {
+    let query = "UPDATE reseller_info SET";
+    const params = [];
+    const fields = [];
+  
+    if (deviceId !== undefined && deviceId !== null) {
+      fields.push(" products_List = ?");
+      params.push(JSON.stringify(deviceId));
+    }
+    
+    if (fields.length > 0) {
+      query += fields.join(",") + " WHERE email = ?";
+      params.push(email);
+      
+      return db.execute(query, params);
+    } else {
+      return Promise.resolve({ message: "No fields to update" });
+    }
+  }
 
 static async removeDeviceId(updatedProducts,email){
 return db.execute(
@@ -98,6 +124,12 @@ return db.execute(
     [JSON.stringify(updatedProducts), email]
   );
 }
+static async removeResellerDeviceId(updatedProducts,email){
+  return db.execute(
+      'UPDATE reseller_user_info SET products_list = ? WHERE email = ?',
+      [JSON.stringify(updatedProducts), email]
+    );
+  }
 static async getProductsList(email){
 return db.execute(
     'SELECT products_list FROM user_ WHERE email = ?', [email]
@@ -140,10 +172,27 @@ return db.execute(
           static fetchDevices(){
             return db.execute(`SELECT * FROM id_create_info`)
           }
-
-          static addUserByAdmin(email,password){
-            return db.execute(`INSERT INTO user_ (email,password) VALUES (?,?)`, [email,password])
+          static addUserByAdmin(email, password, roleId, deviceIds) {
+            if (!email || !password || !roleId) {
+              return Promise.reject(
+                new Error("Missing required fields: email, password, or roleId")
+              );
+            }
+          
+            if (Array.isArray(deviceIds) && deviceIds.length > 0) {
+              const deviceIdsJson = JSON.stringify(deviceIds);
+              return db.execute(
+                `INSERT INTO user_ (email, password, role_id, products_list) VALUES (?, ?, ?, ?)`,
+                [email, password, roleId, deviceIdsJson]
+              );
+            } else {
+              return db.execute(
+                `INSERT INTO user_ (email, password, role_id) VALUES (?, ?, ?)`,
+                [email, password, roleId]
+              );
+            }
           }
+          
            static async checkDevice ( deviceId){
               return db.execute("SELECT * FROM id_create_info WHERE device_id = ? ", [deviceId])
           }
@@ -154,5 +203,20 @@ return db.execute(
            static fetchPaginatedUsers(limit,offset){
              return db.execute("SELECT * FROM user_ LIMIT ? OFFSET ?", [limit, offset])
            }
+           static addReseller(name, email, deviceIds) {
+            if (deviceIds && Array.isArray(deviceIds) && deviceIds.length > 0) {
+              const deviceIdsJson = JSON.stringify(deviceIds);
+              return db.execute(
+                `INSERT INTO reseller_info (name, email, products_list) VALUES (?, ?, ?)`,
+                [name, email, deviceIdsJson]
+              );
+            } else {
+              return db.execute(
+                `INSERT INTO reseller_info (name, email) VALUES (?, ?)`,
+                [name, email]
+              );
+            }
+          }  
+              
           
 }

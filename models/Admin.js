@@ -200,9 +200,13 @@ return db.execute(
             return db.execute("SELECT COUNT(*) as count FROM user_")
            }
  
-           static fetchPaginatedUsers(limit,offset){
-             return db.execute("SELECT * FROM user_ LIMIT ? OFFSET ?", [limit, offset])
-           }
+           static fetchPaginatedUsers(limit, offset) {
+              const safeLimit = parseInt(limit, 10);
+              const safeOffset = parseInt(offset, 10);
+              const query = `SELECT * FROM user_ LIMIT ${safeLimit} OFFSET ${safeOffset}`;
+              return db.execute(query);
+            }
+
            static addReseller(name, email, deviceIds) {
             if (deviceIds && Array.isArray(deviceIds) && deviceIds.length > 0) {
               const deviceIdsJson = JSON.stringify(deviceIds);

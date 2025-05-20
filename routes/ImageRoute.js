@@ -1,5 +1,5 @@
 const express = require("express");
-const {  addDeviceIdOnImageController, findDevicesByIdController, deleteDeviceIdController, updateDeviceController, insertImageController,  findImageDetailsController } = require("../controllers/ImageController");
+const {  addDeviceIdOnImageController, findDevicesByIdController, deleteDeviceIdController, updateDeviceController, insertImageController,  findImageDetailsController, deleteImageController } = require("../controllers/ImageController");
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const multer = require("multer");
@@ -18,6 +18,7 @@ const upload = multer({ storage });
 router.post("/addDeviceIdOnImage",addDeviceIdOnImageController);
 router.get("/fetchDevices",findDevicesByIdController);
 router.delete("/deleteDevice",deleteDeviceIdController);
+router.delete("/deleteImage",deleteImageController);
 router.patch("/updateDevice",updateDeviceController);
 router.get("/findImageDetails",findImageDetailsController);
 router.post("/insertImage", upload.single("image"), insertImageController);

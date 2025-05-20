@@ -29,6 +29,12 @@ static async duplicateLocationCheck (imageId,left,top ){
  static removeDeviceId(emailId,deviceId){
     return db.execute('DELETE FROM image_device_info WHERE email = ? AND device_id = ?', [emailId,deviceId]);   
   }
+   static removeImage(email,imageId){
+    return db.execute('DELETE FROM image_info WHERE email = ? AND image_id = ?', [email,imageId]);   
+  }
+   static removeAllDevices(email,imageId){
+    return db.execute('DELETE FROM image_device_info WHERE email = ? AND image_id = ?', [email,imageId]);   
+  }
   static checkImageId(imageId){
     return db.execute('Select * FROM image_info WHERE image_id = ? ', [imageId]);   
   }

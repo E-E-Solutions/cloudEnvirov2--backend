@@ -363,6 +363,43 @@ const findImageDetailsController = async (req,res) =>{
     });
   }
 }
+const deleteImageController = async (req, res) => {
+  const email = req.user.email;
+  const { imageId } = req.query;
+
+  if (!email) {
+    return res.status(400).json({ success: false, message: "Email is required" });
+  }
+
+  if (!imageId) {
+    return res.status(400).json({ success: false, message: "Image id is required" });
+  }
+
+  try {
+    const result = await Image.removeImage(email, imageId);
+    await Image.removeAllDevices(email, imageId);
+
+    if (!result || result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No records found to delete",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Image and associated devices deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting image:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while deleting image",
+      error: error.message || error,
+    });
+  }
+};
+
 
 
 module.exports = {
@@ -372,4 +409,5 @@ module.exports = {
    updateDeviceController,
    insertImageController,
    findImageDetailsController,
+   deleteImageController
   };

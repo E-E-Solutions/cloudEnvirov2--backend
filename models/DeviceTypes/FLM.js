@@ -11,17 +11,23 @@ class FLM {
         const totalizerColumn = "cumm";
 
         // Query to get the latest row    
-        const latestRowQuery = `
-                WITH last_date AS (
-                    SELECT MAX(DATE(ts_server)) AS max_date FROM ??
-                )
-                SELECT 
-                    DATE_FORMAT(MAX(ts_server), '%Y-%m-%d %H:%i:%s') AS ts_server,
-                    MAX(??) AS final_totalizer,
-                    ROUND((MAX(??) - MIN(??)), 2) AS daily_flow
-                FROM ??
-                WHERE DATE(ts_server) = (SELECT max_date FROM last_date);
-            `;
+      const latestRowQuery = `
+    WITH last_date AS (
+        SELECT MAX(DATE(ts_server)) AS max_date FROM ??
+    )
+    SELECT 
+        DATE_FORMAT(MAX(ts_server), '%Y-%m-%d %H:%i:%s') AS ts_server,
+        MAX(??) AS final_totalizer,
+        ROUND((MAX(??) - MIN(??)), 2) AS daily_flow,
+        (SELECT flow 
+         FROM ?? 
+         WHERE DATE(ts_server) = (SELECT max_date FROM last_date) 
+         ORDER BY ts_server DESC 
+         LIMIT 1) AS flow
+    FROM ??
+    WHERE DATE(ts_server) = (SELECT max_date FROM last_date);
+`;
+
 
         // Fetch the latest row
         const [latestRow] = await db.query(latestRowQuery, [
@@ -30,6 +36,7 @@ class FLM {
           totalizerColumn,
           totalizerColumn,
           this.deviceId,
+          this.deviceId 
         ]);
 
         // Check if latestRow is defined and has data

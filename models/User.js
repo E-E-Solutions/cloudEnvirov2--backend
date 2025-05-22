@@ -19,8 +19,8 @@ module.exports = class Users {
   save() {
     return new Promise(async (resolve, reject) => {
       try {
-        const baseQuery = "INSERT INTO user_ (name, email, password, products_list, address, contact, salutation, firm_name";
-        const baseValues = [this.name, this.emailId, this.password, JSON.stringify(this.productsList), this.address, this.contactNo, "M/S", this.firmName || ""];
+        const baseQuery = "INSERT INTO user_ (name, email, password, products_list, address, contact, salutation, firm_name,role_id";
+        const baseValues = [this.name, this.emailId, this.password, JSON.stringify(this.productsList), this.address, this.contactNo, "M/S", this.firmName || "", this.roleId];
 
         // If isVerified is provided, include it in the query
         let finalQuery = baseQuery;
@@ -31,7 +31,7 @@ module.exports = class Users {
           finalValues.push(this.isVerified);
         }
 
-        finalQuery += ") VALUES (?, ?, ?, ?, ?, ?, ?, ?" + (typeof this.isVerified !== "undefined" ? ", ?" : "") + ")";
+        finalQuery += ") VALUES (?, ?, ?, ?, ?, ?, ?, ?,?" + (typeof this.isVerified !== "undefined" ? ", ?" : "") + ")";
 
         console.log({
           name: this.name,

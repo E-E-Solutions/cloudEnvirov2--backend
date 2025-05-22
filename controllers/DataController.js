@@ -584,6 +584,135 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
     res.status(500).send({ success: false, message: "Internal Server Error", detail:er });
   }
 };
+const GetAllParametersData = async (req, res) => {
+  try {
+    const { email, role } = req.user;
+
+    // Fetch products based on role
+    let existingProducts;
+    if (role === "resellerUser") {
+      existingProducts = await Users.getResellerUserProducts(email);
+    } else {
+      existingProducts = await Users.getProducts(email);
+    }
+
+    console.log({ existingProducts });
+
+    existingProducts = existingProducts === "" ? "[]" : existingProducts;
+
+    // Convert from JSON string if needed
+    existingProducts = typeof existingProducts === "string"
+      ? JSON.parse(existingProducts)
+      : existingProducts;
+
+    // existingProducts should be an array now
+    // Process each deviceId asynchronously and gather results
+    const allDevicesData = await Promise.all(existingProducts.map(async (deviceId) => {
+      const DataObj = new Data(deviceId);
+      const latestDataObj = await DataObj.getLatestData();
+
+      if (!latestDataObj) {
+        // If no data for this device, skip it by returning null or empty
+        return null;
+      }
+
+      const data = latestDataObj.latestData[0];
+      const dailyAverages = latestDataObj.dailyAverages[0];
+
+      const deviceType = getDeviceType(deviceId);
+      const [deviceTypeInfo] = await Device.getDeviceTypeInfo(deviceType);
+      const { ts_col_name, useless_col } = deviceTypeInfo[0];
+      const deleteColumns = JSON.parse(useless_col);
+      deleteColumns.forEach((col) => delete data[col]);
+
+      const ts_server = data[ts_col_name];
+      delete data[ts_col_name];
+
+      // Process each parameter in data
+      const LatestData = await Promise.all(
+        Object.entries(data).map(async ([key, value]) => {
+          try {
+            const settings = new Settings(email);
+            let [setting] = await settings.getSettings();
+            setting = setting[0];
+            const paraInfo = setting ? JSON.parse(setting.para_info) : {};
+            let deviceSettings = paraInfo[deviceId];
+
+            if (deviceSettings && deviceSettings[key]) {
+              return {
+                key,
+                name: deviceSettings[key].name,
+                unit: deviceSettings[key].unit,
+                minimum: deviceSettings[key].minimum,
+                maximum: deviceSettings[key].maximum,
+                threshold: deviceSettings[key].threshold,
+                value: value,
+                average:
+                  dailyAverages && Number(dailyAverages[`${key}`]).toFixed(0),
+              };
+            }
+
+            // If no device-specific setting, get default para info
+            const [response] = await Device.getParaInfo(key);
+            const responseObj = response[0];
+            return {
+              key,
+              name: responseObj.para_name,
+              unit: responseObj.para_unit,
+              value: value,
+              minimum: responseObj.min,
+              maximum: responseObj.max,
+            };
+          } catch (er) {
+            console.log(er);
+            return null;
+          }
+        })
+      );
+
+      const [dataObj] = await Data.getDataAvailabilityYears(deviceId);
+      const years = dataObj.map((obj) => obj.year);
+
+      const tsServer = new Date(ts_server) || ts_server;
+      const gmtOffset = tsServer.getTimezoneOffset() * 60000;
+      const adjustedTimestamp = tsServer.getTime() + gmtOffset;
+
+      return {
+        deviceId,
+        data: LatestData,
+        time: adjustedTimestamp,
+        dataAvailabilityYears: years.sort((a, b) => b - a),
+        status: getStatus(ts_server),
+        other: {
+          gmtOffset,
+          tsServer,
+          adjustedTimestamp,
+          ts: new Date(adjustedTimestamp),
+        },
+      };
+    }));
+
+    // Filter out null devices (devices with no data)
+    const filteredDevicesData = allDevicesData.filter(d => d !== null);
+
+    if (filteredDevicesData.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No data is currently available for any devices",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      devices: filteredDevicesData,
+    });
+
+  } catch (er) {
+    console.log(er);
+    res.status(500).send({ success: false, message: "Internal Server Error | " + er });
+  }
+};
+
 
 module.exports = {
   GetLatestData,
@@ -593,4 +722,5 @@ module.exports = {
   GetLastAvgDataByDays,
   GetLastDataByDuration,
   GetLastAvgDataByCustomDuration,
+  GetAllParametersData
 };

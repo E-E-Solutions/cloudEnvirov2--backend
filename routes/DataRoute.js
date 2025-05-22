@@ -1,10 +1,11 @@
 const express = require("express");
-const { GetLatestData ,GetDeviceStatusAndLocation,GetSelectedDeviceStatusAndLocation, GetDataPointsPerYear, GetLastAvgDataByDays, GetLastDataByDuration, GetLastAvgDataByCustomDuration} = require("../controllers/DataController");
+const { GetLatestData ,GetDeviceStatusAndLocation,GetSelectedDeviceStatusAndLocation, GetDataPointsPerYear, GetLastAvgDataByDays, GetLastDataByDuration, GetLastAvgDataByCustomDuration, GetAllParametersData} = require("../controllers/DataController");
 
 const router = express.Router();
 
 // Get latest data
 router.get("/", GetLatestData);
+router.get("/getAllParameterData", GetAllParametersData);
 router.get("/getDeviceStatusAndLocation",GetDeviceStatusAndLocation);
 router.get("/getSelectedDeviceStatusAndLocation",GetSelectedDeviceStatusAndLocation);
 router.get("/getDataAvailability",GetDataPointsPerYear);

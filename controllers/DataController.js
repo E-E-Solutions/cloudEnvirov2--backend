@@ -445,20 +445,16 @@ const GetLastDataByDuration = async (req, res) => {
       if (obj.bv) delete obj.bv;
 
       const data = Object.entries(obj).reduce((acc, [key, value]) => {
-        console.log(paraObj[key]);
+  const displayKey = paraObj[key] || key;
 
-        let _obj;
-        if (paraObj[key]) {
-          _obj = { [paraObj[key]]: value };
-        } else {
-          _obj = { [key]: value };
-        }
+  // Round if value is a number
+ const numericValue = Number(value);
+const roundedValue = isNaN(numericValue) ? value : parseFloat(numericValue.toFixed(1));
 
-        // console.log({})
-        acc = { ...acc, ..._obj };
-        return acc;
-      }, {});
 
+  acc[displayKey] = roundedValue;
+  return acc;
+}, {});
       console.log({ data });
 
       return data;
@@ -560,19 +556,18 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
       if (obj.lt) delete obj.lt;
       if (obj.bv) delete obj.bv;
 
-      const data = Object.entries(obj).reduce((acc, [key, value]) => {
-        console.log(paraObj[key]);
-        let _obj;
-        if (paraObj[key]) {
-          _obj = { [paraObj[key]]: value };
-        } else {
-          _obj = { [key]: value };
-        }
+     const data = Object.entries(obj).reduce((acc, [key, value]) => {
+  const displayKey = paraObj[key] || key;
 
-        // console.log({})
-        acc = { ...acc, ..._obj };
-        return acc;
-      }, {});
+  // Round if value is a number
+ const numericValue = Number(value);
+const roundedValue = isNaN(numericValue) ? value : parseFloat(numericValue.toFixed(1));
+
+
+  acc[displayKey] = roundedValue;
+  return acc;
+}, {});
+
       console.log(data);
 
       return data;

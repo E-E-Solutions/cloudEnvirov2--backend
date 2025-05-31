@@ -136,7 +136,7 @@ return db.execute(
   );
 }
 
-      static addParametersByAdmin(paraName, paraUnit,paraKey,min,max){
+      static addParametersByAdmin(paraName, paraUnit,paraKey,min=0,max=""){
            return db.execute(
               'INSERT INTO parameters_info (para_name, para_unit,para_key,min,max) VALUES (?,?,?,?,?)',
               [paraName, paraUnit,paraKey,min,max]

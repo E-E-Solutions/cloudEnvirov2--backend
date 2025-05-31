@@ -19,7 +19,7 @@ class FLM {
         DATE_FORMAT(MAX(ts_server), '%Y-%m-%d %H:%i:%s') AS ts_server,
         MAX(??) AS final_totalizer,
         ROUND((MAX(??) - MIN(??)), 2) AS daily_flow,
-        (SELECT flow 
+        (SELECT _read 
          FROM ?? 
          WHERE DATE(ts_server) = (SELECT max_date FROM last_date) 
          ORDER BY ts_server DESC 

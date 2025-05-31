@@ -33,6 +33,7 @@ const userRoute = require("./routes/AuthRoute");
 const deviceRoute = require("./routes/DeviceRoute");
 const dataRoute = require("./routes/DataRoute");
 const settingRoute = require("./routes/SettingRoute");
+const openApiRoute = require("./routes/openAPIRoute");
 const imageRoute = require("./routes/ImageRoute");
 const adminRoute = require("./routes/AdminRoute");
 const resellerRoute = require("./routes/ResellerRoute");
@@ -62,6 +63,7 @@ app.get("/testing", (req, res) => {
 
 // Use the user routes for the specified path
 app.use("/api/v1/user", userRoute);
+app.use("/api/v1/openApi", openApiRoute);
 app.use("/api/v1/device", authenticateUser, deviceRoute);
 app.use("/api/v1/data", authenticateUser, dataRoute);
 app.use("/api/v1/setting", authenticateUser, settingRoute);

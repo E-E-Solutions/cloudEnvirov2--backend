@@ -707,7 +707,98 @@ const GetAllParametersData = async (req, res) => {
     res.status(500).send({ success: false, message: "Internal Server Error | " + er });
   }
 };
+const GetAllDevicesLatestData = async (req, res) => {
+  try {
+    const { deviceId:rawDeviceId } = req.query;
+    const deviceId = rawDeviceId.toUpperCase(); 
 
+    const DataObj = new Data(deviceId);
+    const latestDataObj = await DataObj.getLatestData();
+
+    if (!latestDataObj) {
+      return res.status(501).json({
+        success: false,
+        message: "No data is currently available for this device",
+      });
+    }
+
+    const data = latestDataObj.latestData[0];
+    const dailyAverages = latestDataObj.dailyAverages[0];
+
+    const deviceType = getDeviceType(deviceId);
+    const [deviceTypeInfo] = await Device.getDeviceTypeInfo(deviceType);
+    const { ts_col_name, useless_col } = deviceTypeInfo[0];
+    const deleteColumns = JSON.parse(useless_col);
+    deleteColumns.forEach((col) => delete data[col]);
+
+    const ts_server = data[ts_col_name];
+    delete data[ts_col_name];
+
+    const LatestData = await Promise.all(
+      Object.entries(data).map(async ([key, value]) => {
+        try {
+          const settings = new Settings();
+          let [setting] = await settings.getSettings();
+          setting = setting[0];
+          const paraInfo = setting ? JSON.parse(setting.para_info) : {};
+          let deviceSettings = paraInfo[deviceId];
+
+          if (deviceSettings && deviceSettings[key]) {
+            return {
+              key,
+              name: deviceSettings[key].name,
+              unit: deviceSettings[key].unit,
+              minimum: deviceSettings[key].minimum,
+              maximum: deviceSettings[key].maximum,
+              threshold: deviceSettings[key].threshold,
+              value: value,
+              average:
+                dailyAverages && Number(dailyAverages[`${key}`]).toFixed(0),
+            };
+          }
+
+          const [response] = await Device.getParaInfo(key);
+          const responseObj = response[0];
+          return {
+            key,
+            name: responseObj.para_name,
+            unit: responseObj.para_unit,
+            value: value,
+            minimum: responseObj.min,
+            maximum: responseObj.max,
+          };
+        } catch (er) {
+          console.log(er);
+          return null;
+        }
+      })
+    );
+
+    const [dataObj] = await Data.getDataAvailabilityYears(deviceId);
+    const years = dataObj.map((obj) => obj.year);
+
+    const tsServer = new Date(ts_server) || ts_server;
+    const gmtOffset = tsServer.getTimezoneOffset() * 60000;
+    const adjustedTimestamp = tsServer.getTime() + gmtOffset;
+
+    return res.status(200).json({
+      success: true,
+      data: LatestData,
+      time: adjustedTimestamp,
+      dataAvailabilityYears: years.sort((a, b) => b - a),
+      status: getStatus(ts_server),
+      other: {
+        gmtOffset,
+        tsServer,
+        adjustedTimestamp,
+        ts: new Date(adjustedTimestamp),
+      },
+    });
+  } catch (er) {
+    console.log(er);
+    res.status(500).send({ success: false, message: "Internal Server Error | " + er });
+  }
+};
 
 module.exports = {
   GetLatestData,
@@ -717,5 +808,6 @@ module.exports = {
   GetLastAvgDataByDays,
   GetLastDataByDuration,
   GetLastAvgDataByCustomDuration,
-  GetAllParametersData
+  GetAllParametersData,
+  GetAllDevicesLatestData
 };

@@ -349,33 +349,22 @@ const updateUserDeviceInfoController = async (req, res) => {
     try {
       const { paraName, paraUnit, paraKey, min, max } = req.body;
   
-      if (![paraName, paraUnit, paraKey, min, max].every(v => v.toString().trim())) {
+      if (![paraName, paraUnit, paraKey].every(v => v.toString().trim())) {
         return res.status(400).json({
           success: false,
-          message: "All fields (Parameter Name, Unit, Key, Min, Max) are required.",
+          message: "All fields (Parameter Name, Unit, Key) are required.",
         });
       }
   
       // Check if parameter key and name already exist
       const key = await Admin.checkParameterKey(paraKey);
       const name = await Admin.checkParameterName(paraName,paraUnit);
-  
-      if (key[0][0] && name[0][0]) {
-        return res.status(400).json({
-          success: false,
-          message: "Both the parameter name and key already exist. Please use unique values.",
-        });
-      } else if (key[0][0]) {
+      if (key[0][0]) {
         return res.status(400).json({
           success: false,
           message: "The parameter key already exists. Please use a different key.",
         });
-      } else if (name[0][0]) {
-        return res.status(400).json({
-          success: false,
-          message: "The parameter name already exists. Please use a different name.",
-        });
-      }
+      } 
       
       await Admin.addParametersByAdmin(
         paraName,

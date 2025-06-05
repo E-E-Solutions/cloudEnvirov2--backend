@@ -446,11 +446,14 @@ const GetLastDataByDuration = async (req, res) => {
 
       const data = Object.entries(obj).reduce((acc, [key, value]) => {
   const displayKey = paraObj[key] || key;
+const numericValue = Number(value);
+const isDate = !isNaN(Date.parse(value));
 
-  // Round if value is a number
- const numericValue = Number(value);
-const roundedValue = isNaN(numericValue) ? value : parseFloat(numericValue.toFixed(1));
-
+const roundedValue = isDate
+  ? value
+  : isNaN(numericValue)
+    ? value
+    : parseFloat(numericValue.toFixed(1));
 
   acc[displayKey] = roundedValue;
   return acc;
@@ -558,11 +561,11 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
 
      const data = Object.entries(obj).reduce((acc, [key, value]) => {
   const displayKey = paraObj[key] || key;
-
   // Round if value is a number
- const numericValue = Number(value);
-const roundedValue = isNaN(numericValue) ? value : parseFloat(numericValue.toFixed(1));
+const numericValue = Number(value);
+const isDate = !isNaN(Date.parse(value));
 
+const roundedValue = isDate? value: isNaN(numericValue) ? value: parseFloat(numericValue.toFixed(1));
 
   acc[displayKey] = roundedValue;
   return acc;

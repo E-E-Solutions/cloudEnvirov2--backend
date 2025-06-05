@@ -218,9 +218,9 @@ const addResellerUserController = async (req, res) => {
   const updateResellerUserFirmInfoController = async (req, res) => {
     try {
         const {email} = req.query
-      const { firmName, firmAddress, contactNo } = req.body;
+      const { password,firmName, firmAddress, contactNo } = req.body;
    
-      console.log({ email, firmName, firmAddress, contactNo });
+      console.log({ email, password, firmName, firmAddress, contactNo });
   
       const user = await Reseller.findResellersUserByEmailId(email);
   
@@ -234,6 +234,7 @@ const addResellerUserController = async (req, res) => {
   
       const updateFirmInfo = await Reseller.updateResellerUserFirmInfo(
         email,
+        password,
         firmName,
         firmAddress,
         contactNo

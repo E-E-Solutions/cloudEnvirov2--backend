@@ -118,6 +118,37 @@ static findUserbyId(userId) {
     }
   }
 
+    static async updateParameterInfo( paraKey,paraUnit,paraName,min,max ) {
+    let query = "UPDATE parameters_info SET";
+    const params = [];
+    const fields = [];
+  
+    if (paraName !== undefined && paraName !== null) {
+      fields.push(" para_name = ?");
+      params.push(paraName);
+    }
+    if (paraUnit !== undefined && paraUnit !== null) {
+      fields.push(" para_unit = ?");
+      params.push(paraUnit);
+    }
+    if (min !== undefined && min !== null) {
+      fields.push(" min = ?");
+      params.push(min);
+    }
+     if (max !== undefined && max !== null) {
+      fields.push(" max = ?");
+      params.push(max);
+    }
+    
+    if (fields.length > 0) {
+      query += fields.join(",") + " WHERE para_key = ?";
+      params.push(paraKey);
+      
+      return db.execute(query, params);
+    } else {
+      return Promise.resolve({ message: "No fields to update" });
+    }
+  }
 static async removeDeviceId(updatedProducts,email){
 return db.execute(
     'UPDATE user_ SET products_list = ? WHERE email = ?',
@@ -171,6 +202,9 @@ return db.execute(
 
           static fetchDevices(){
             return db.execute(`SELECT * FROM id_create_info`)
+          }
+          static fetchParameters(){
+            return db.execute (`SELECT * FROM parameters_info`)
           }
           static addUserByAdmin(email, password, roleId, deviceIds) {
             if (!email || !password || !roleId) {

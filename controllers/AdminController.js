@@ -654,6 +654,71 @@ const updateUserDeviceInfoController = async (req, res) => {
       });
     }
   };
+   const fetchAllParameterDetails= async(req,res)=>{
+    try {
+        const [parameterDetails] = await Admin.fetchParameters(); 
+        
+        const paraInfo = parameterDetails.map(para=>({
+          sno : para.sno,
+          paraKey : para.para_key,
+          paraUnit:para.para_unit,
+          paraName : para.para_name,
+          min : para.min,
+          max : para.max
+        }))
+        return res.status(200).json({
+          success: true,
+          data: paraInfo
+        });
+      
+      } catch (error) {
+        console.error("Error fetching parameters:", error);
+        return res.status(500).json({
+          success: false,
+          message: "An error occurred while fetching parameter details.",
+          error: error.message
+        });
+    }  
+  }
+   const UpdateParametersByAdminController = async (req, res) => {
+    try {
+      const { paraKey, paraUnit,paraName, min, max } = req.body;
+      if(!paraKey) {
+      return res.status(400).json({
+        success: false,
+        message: "Parameter Key is required.",
+      });
+    }
+  
+      if (!(paraName|| paraUnit || min || max)) {
+        return res.status(400).json({
+          success: false,
+          message: "Atleast update on field.",
+        });
+      }
+
+      const updated = await Admin.updateParameterInfo(paraKey,paraUnit,paraName,min,max)
+
+      if (updated[0].affectedRows === 0) {
+          return res
+            .status(StatusCodes.NOT_FOUND)
+            .json({ success: false, message: "Can't Update Parameter Info!" });
+        }
+     
+      return res.status(200).json({
+        success: true,
+        message: "Parameter updated successfully.",
+      });
+  
+    } catch (error) {
+      console.error("Error updating parameter:", error);
+      return res.status(500).json({
+        success: false,
+        message: "An error occurred while updating the parameter.",
+        error: error.message || error,
+      });
+    }
+  };
   
 module.exports = {
     removeUserController,
@@ -667,4 +732,6 @@ module.exports = {
     removeDeviceFromUser,
     fetchAllDeviceDetails,
     addUser,
+    UpdateParametersByAdminController,
+    fetchAllParameterDetails
   };

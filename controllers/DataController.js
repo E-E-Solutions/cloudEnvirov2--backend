@@ -284,7 +284,7 @@ const GetDeviceStatusAndLocation = async (req, res) => {
 
 const GetDataPointsPerYear = async (req, res) => {
   try {
-    const { email } = req.user;
+    const { email,role } = req.user;
 
     if (!validateRequestBody(req.query, ["deviceId", "year"])) {
       return res.status(400).json({
@@ -296,7 +296,7 @@ const GetDataPointsPerYear = async (req, res) => {
 
     let returnableObj = [];
     let products = await Users.getProducts(email);
-    if (!products.includes(deviceId)) {
+    if (!products.includes(deviceId)  && role !== "admin") {
       return res.status(400).send({
         success: false,
         message: "You are not authorized to access this device",

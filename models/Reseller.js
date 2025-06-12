@@ -66,10 +66,14 @@ static async fetchResellerUserDevices(email) {
           return Promise.resolve({ message: "No fields to update" });
         }
       }
-     static async updateResellerUserFirmInfo(emailId, firmName, firmAddress, contactNo) {
+     static async updateResellerUserFirmInfo(emailId, password,firmName, firmAddress, contactNo) {
         let query = "UPDATE reseller_user_info SET";
         const params = [];
         const fields = [];
+        if (password !== undefined && password !== null) {
+          fields.push(" password = ?");
+          params.push(password);
+        }
       
         if (firmName !== undefined && firmName !== null) {
           fields.push(" firm_name = ?");

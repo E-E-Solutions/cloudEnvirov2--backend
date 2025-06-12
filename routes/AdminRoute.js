@@ -12,6 +12,8 @@ const {
     removeDeviceFromUser,
     fetchAllDeviceDetails,
     addUser,
+    UpdateParametersByAdminController,
+    fetchAllParameterDetails,
   } = require("../controllers/AdminController");
   
 router.delete("/deleteUser",requireRole('admin'), removeUserController )
@@ -24,5 +26,8 @@ router.patch("/updateRole",requireRole('admin'), UpdateRole);
 router.delete("/removeDeviceId",requireRole('admin'), removeDeviceFromUser); 
 router.get("/fetchDevices",requireRole('admin'), fetchAllDeviceDetails);    
 router.post("/addNewUser",requireRole('admin'), addUser);  
+router.get("/fetchAllParameters",requireRole('admin'), fetchAllParameterDetails);  
+router.patch("/updateParameterInfo",requireRole('admin'), UpdateParametersByAdminController);  
+
 
 module.exports = router;

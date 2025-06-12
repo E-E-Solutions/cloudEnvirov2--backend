@@ -284,7 +284,7 @@ const GetDeviceStatusAndLocation = async (req, res) => {
 
 const GetDataPointsPerYear = async (req, res) => {
   try {
-    const { email } = req.user;
+    const { email,role } = req.user;
 
     if (!validateRequestBody(req.query, ["deviceId", "year"])) {
       return res.status(400).json({
@@ -296,7 +296,7 @@ const GetDataPointsPerYear = async (req, res) => {
 
     let returnableObj = [];
     let products = await Users.getProducts(email);
-    if (!products.includes(deviceId)) {
+    if (!products.includes(deviceId)  && role !== "admin") {
       return res.status(400).send({
         success: false,
         message: "You are not authorized to access this device",
@@ -446,11 +446,14 @@ const GetLastDataByDuration = async (req, res) => {
 
       const data = Object.entries(obj).reduce((acc, [key, value]) => {
   const displayKey = paraObj[key] || key;
+const numericValue = Number(value);
+const isDate = !isNaN(Date.parse(value));
 
-  // Round if value is a number
- const numericValue = Number(value);
-const roundedValue = isNaN(numericValue) ? value : parseFloat(numericValue.toFixed(1));
-
+const roundedValue = isDate
+  ? value
+  : isNaN(numericValue)
+    ? value
+    : parseFloat(numericValue.toFixed(1));
 
   acc[displayKey] = roundedValue;
   return acc;
@@ -558,11 +561,11 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
 
      const data = Object.entries(obj).reduce((acc, [key, value]) => {
   const displayKey = paraObj[key] || key;
-
   // Round if value is a number
- const numericValue = Number(value);
-const roundedValue = isNaN(numericValue) ? value : parseFloat(numericValue.toFixed(1));
+const numericValue = Number(value);
+const isDate = !isNaN(Date.parse(value));
 
+const roundedValue = isDate? value: isNaN(numericValue) ? value: parseFloat(numericValue.toFixed(1));
 
   acc[displayKey] = roundedValue;
   return acc;

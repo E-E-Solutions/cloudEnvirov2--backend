@@ -211,7 +211,7 @@ const UpdateLocationController = async (req, res) => {
     }
     
     console.log({ fetchUserDetails: fetchUserDetails[0] });
-
+if(role !=="admin"){
     if (
       !deviceIds.every((element) =>
         fetchUserDetails[0].products_list.includes(element)
@@ -223,6 +223,7 @@ const UpdateLocationController = async (req, res) => {
           "This device is not in your device list, So you cannot Update its Location",
       });
     }
+  }
 
     const location = `${longitude};${latitude};${address}`;
 

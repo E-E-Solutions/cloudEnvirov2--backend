@@ -9,13 +9,13 @@ const pool = mysql2.createPool({
   connectionLimit: 10,
 });
 
-pool.getConnection((err)=>{
-  if(err){
-    console.log("database error")
-  } else{
-    console.log("connected")
+pool.getConnection((err) => {
+  if (err) {
+    console.log("database error");
+  } else {
+    console.log("connected");
   }
-})
+});
 
 // const pool = mysql2.createPool({
 //   host: "172.26.0.15",

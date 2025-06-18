@@ -146,8 +146,11 @@ const findAllUsersController = async (req, res) => {
       const response = await Admin.removeUser(email);
   
       if (role === "reseller") {
+         const [vendorIds] = await Reseller.findVendorId(email)
+       const vendorId = vendorIds[0].vendor_id
         await Admin.removeReseller(email); 
-        await Admin.removeAllResellerUsers(email); 
+         
+        await Admin.removeAllResellerUsers(vendorId); 
       }
   
       if (response.affectedRows === 0) {
@@ -302,7 +305,9 @@ const updateUserDeviceInfoController = async (req, res) => {
       const validDeviceIds = JSON.parse(resellerDevicesRows[0].products_list || "[]");
     
       // Fetch all users under this reseller
-      const [resellerUsers] = await Reseller.fetchResellerUsers(email);
+        const [vendorIds] = await Reseller.findVendorId(email)
+       const vendorId = vendorIds[0].vendor_id
+      const [resellerUsers] = await Reseller.fetchResellerUsers(vendorId);
     
       // Loop through each user and clean up their products list
       for (const user of resellerUsers) {
@@ -391,7 +396,7 @@ const updateUserDeviceInfoController = async (req, res) => {
   const UpdateRole = async (req, res) => {
     try {
       const { email } = req.query;
-      const { newRole, name } = req.body;
+      const { newRole, name,vendorId } = req.body;
   
       if (!email) {
         return res.status(400).send({
@@ -431,11 +436,15 @@ const updateUserDeviceInfoController = async (req, res) => {
   
       // Step 1: Update role
       await Admin.addRole(email, newRoleId);
-  
       // Step 2: If current role is reseller, clean up reseller data
       if (currentRoleName === "reseller") {
+          const vendorIds = await Reseller.findVendorId(email)
+        console.log("email",email)
+      console.log("ven",vendorIds[0][0]?.vendor_id)
+       const vendorId = vendorIds[0][0]?.vendor_id
         await Admin.removeReseller(email);
-        await Admin.removeAllResellerUsers(email);
+      
+        await Admin.removeAllResellerUsers(vendorId);
       }
   
       // Step 3: If new role is reseller, add reseller entry
@@ -457,8 +466,7 @@ const updateUserDeviceInfoController = async (req, res) => {
             error: err.message,
           });
         }
-  
-        await Admin.addReseller( name,email, deviceIds);
+        await Admin.addReseller( name,email, deviceIds,vendorId);
       }
   
       return res.status(200).json({
@@ -514,8 +522,10 @@ const updateUserDeviceInfoController = async (req, res) => {
         const resellerProducts = JSON.parse(resellerRows[0].products_list || "[]");
         const updatedResellerProducts = resellerProducts.filter(id => id !== deviceId);
         await Admin.updateResellerDeviceInfo(email, updatedResellerProducts);
-  
-        const [resellerUsers] = await Reseller.fetchResellerUsers(email);
+
+         const [vendorIds] = await Reseller.findVendorId(email)
+       const vendorId = vendorIds[0].vendor_id
+        const [resellerUsers] = await Reseller.fetchResellerUsers(vendorId);
   
         for (const user of resellerUsers) {
           const userDevices = JSON.parse(user.products_list || "[]");
@@ -576,7 +586,7 @@ const updateUserDeviceInfoController = async (req, res) => {
   }
  
   const addUser = async (req, res) => {
-    let { email, password, role, deviceIds, name } = req.body;
+    let { email, password, role, deviceIds, name,vendorId } = req.body;
   
     if (!email || !password) {
       return res.status(400).json({
@@ -634,9 +644,10 @@ const updateUserDeviceInfoController = async (req, res) => {
             message: "Duplicate device IDs are not allowed.",
           });
         }
+         
   
         await Admin.addUserByAdmin(email, password, roleId,deviceIds);
-        await Admin.addReseller(name, email, deviceIds);
+        await Admin.addReseller(name, email, deviceIds,vendorId);
       } else {
         await Admin.addUserByAdmin(email, password, roleId);
       }

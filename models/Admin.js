@@ -35,8 +35,8 @@ static findUserbyId(userId) {
   static removeReseller(emailId){
     return db.execute('DELETE FROM reseller_info WHERE email = ?', [emailId]);   
   }
-  static async removeAllResellerUsers(resellerEmail) {
-    return db.execute("DELETE FROM reseller_user_info WHERE reseller_email = ?", [resellerEmail]);
+  static async removeAllResellerUsers(vendorId) {
+    return db.execute("DELETE FROM reseller_user_info WHERE vendor_id = ?", [vendorId]);
   }
   
   // update user
@@ -104,7 +104,7 @@ static findUserbyId(userId) {
     const fields = [];
   
     if (deviceId !== undefined && deviceId !== null) {
-      fields.push(" products_List = ?");
+      fields.push(" products_list = ?");
       params.push(JSON.stringify(deviceId));
     }
     
@@ -241,17 +241,17 @@ return db.execute(
               return db.execute(query);
             }
 
-           static addReseller(name, email, deviceIds) {
+           static addReseller(name, email, deviceIds,vendorId) {
             if (deviceIds && Array.isArray(deviceIds) && deviceIds.length > 0) {
               const deviceIdsJson = JSON.stringify(deviceIds);
               return db.execute(
-                `INSERT INTO reseller_info (name, email, products_list) VALUES (?, ?, ?)`,
-                [name, email, deviceIdsJson]
+                `INSERT INTO reseller_info (vendor_name, email, products_list,vendor_id,created_at) VALUES (?, ?, ?, ?,NOW())`,
+                [name, email, deviceIdsJson, vendorId]
               );
             } else {
               return db.execute(
-                `INSERT INTO reseller_info (name, email) VALUES (?, ?)`,
-                [name, email]
+                `INSERT INTO reseller_info (vendor_name, email,vendor_id,created_at) VALUES (?, ?, ?,NOW())`,
+                [name, email,vendorId]
               );
             }
           }  

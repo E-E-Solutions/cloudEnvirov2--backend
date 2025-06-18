@@ -68,11 +68,30 @@ module.exports = class Users {
     `, [email]);
     
     }
+    static findByRole(email,roleId){
+       return db.query(`
+      SELECT u.*, r.name AS role
+      FROM user_ u
+      LEFT JOIN user_roles r ON u.role_id = r.id
+      WHERE u.email = ? AND u.role_id= ?
+    `, [email,roleId]);
+    
+    
+    }
+    static async findRoleByEmail(email){
+     const [rows] =  await db.execute(
+      `SELECT role_id FROM user_ WHERE email = ? LIMIT 1`,
+      [email]
+    );
+    return rows[0];
+    }
 
   static findAll() {
     return db.execute("SELECT * FROM user_");
   }
-
+  static checkUser(email,password){
+    return db.execute(`SELECT * FROM user_ WHERE email = ? AND password = ?`, [email,password])
+  }
   static changePassword(emailId, oldPassword, newPassword) {
     return db.execute("UPDATE user_ SET password = ? WHERE email = ? AND password = ?", [newPassword, emailId, oldPassword]);
   }
@@ -104,6 +123,24 @@ module.exports = class Users {
   static async addResellerUserProduct(emailId, productsList) {
     return db.execute("UPDATE reseller_user_info SET products_list = ? WHERE email = ?", [JSON.stringify(productsList), emailId]);
   }
+  // Users.js (Model)
+  static async updateLastLoginForReseller(email) {
+  const query = `
+    UPDATE reseller_info
+    SET last_login = NOW()
+    WHERE email = ?
+  `;
+  return await db.query(query, [email]);
+}
+static async updateLastLoginForResellerUser(email) {
+  const query = `
+    UPDATE reseller_user_info
+    SET last_login = NOW()
+    WHERE email = ?
+  `;
+  return await db.query(query, [email]);
+}
+
   static async updateFirmInfo(emailId, firmName, firmAddress, contactNo) {
     let query = "UPDATE user_ SET";
     const params = [];

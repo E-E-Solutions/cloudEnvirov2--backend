@@ -1,4 +1,6 @@
 const Reseller = require("../models/Reseller");
+const Admin = require("../models/Admin");
+
 const { StatusCodes } = require("http-status-codes");
 const addResellerUserController = async (req, res) => {
     const { email } = req.user;
@@ -64,9 +66,10 @@ const addResellerUserController = async (req, res) => {
           });
         }
       }
-      
+      const [vendorIds] = await Reseller.findVendorId(email)
+       const vendorId = vendorIds[0].vendor_id
       // Insert into DB
-      await Reseller.addResellerUser(userEmail, password, name,email, deviceIds);
+      await Reseller.addResellerUser(userEmail, password, name,vendorId, deviceIds);
   
       return res.status(200).json({
         success: true,
@@ -86,7 +89,9 @@ const addResellerUserController = async (req, res) => {
 
     const {email } = req.user
     try {
-        const [deviceDetails] = await Reseller.fetchResellerDevices(email); 
+          const [vendorIds] = await Reseller.findVendorId(email)
+       const vendorId = vendorIds[0].vendor_id
+        const [deviceDetails] = await Reseller.fetchResellerDevices(vendorId); 
         
         const formattedDeviceDetails = deviceDetails.map(device => ({
            
@@ -110,7 +115,9 @@ const addResellerUserController = async (req, res) => {
 
     const {email } = req.user
     try {
-        const [users] = await Reseller.fetchResellerUsers(email); 
+        const [vendorIds] = await Reseller.findVendorId(email)
+       const vendorId = vendorIds[0].vendor_id
+        const [users] = await Reseller.fetchResellerUsers(vendorId); 
         
         const formattedUsers = users.map(user => ({
            
@@ -165,13 +172,23 @@ const addResellerUserController = async (req, res) => {
             message: "Each device must have a valid deviceId.",
           });
         }
-  
-        const result = await Reseller.checkDevice(email,deviceId);
+        const validateDevice = await Admin.checkDevice(deviceId)
+         if (!validateDevice[0][0]) {
+          return res.status(400).json({
+            success: false,
+            message: `Device ID ${deviceId} does not exist.`,
+          });
+        }
+
+         const [vendorIds] = await Reseller.findVendorId(email)
+         const vendorId = vendorIds[0].vendor_id
+
+        const result = await Reseller.checkDevice(vendorId,deviceId);
   
         if (!result[0][0]) {
           return res.status(400).json({
             success: false,
-            message: `Device not found: ${deviceId}`,
+            message: `Device ID ${deviceId} is not linked to your vendor profile. Please verify the ID or contact support.`,
           });
         }
       }
@@ -182,7 +199,9 @@ const addResellerUserController = async (req, res) => {
           message: "Duplicate device IDs are not allowed.",
         });
       }
-      const userResult = await Reseller.findResellerUser(email,userEmail);
+        const [vendorIds] = await Reseller.findVendorId(email)
+       const vendorId = vendorIds[0].vendor_id
+      const userResult = await Reseller.findResellerUser(vendorId,userEmail);
       const user = userResult[0][0]; 
       if (!user) {
         return res.status(404).json({
@@ -363,6 +382,24 @@ const addResellerUserController = async (req, res) => {
         }
       };
       
+      const fetchAllVendorIdsController = async (req,res)=>{
+        try{
+           const [vendorIdList] = await Reseller.fetchAllVendorIds()
+           const vendorIds = vendorIdList.map((vendor)=> vendor.vendor_id)
+             return res.status(200).json({
+          success: true,
+          data: vendorIds
+        });
+        }
+       catch (error) {
+          console.error("Error removing device:", error);
+          return res.status(500).json({
+            success: false,
+            message: "Failed to remove device.",
+            error: error.message,
+          });
+        }
+      }
  
   module.exports = {
     addResellerUserController,
@@ -371,5 +408,6 @@ const addResellerUserController = async (req, res) => {
     updateResellerUserDeviceInfoController,
     updateResellerUserFirmInfoController,
     removeResellerUserController,
-    removeDeviceFromResellerUser
+    removeDeviceFromResellerUser,
+    fetchAllVendorIdsController
   }

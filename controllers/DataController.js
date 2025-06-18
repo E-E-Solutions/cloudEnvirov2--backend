@@ -175,7 +175,7 @@ const GetSelectedDeviceStatusAndLocation = async (req, res) => {
 
 const GetDeviceStatusAndLocation = async (req, res) => {
   try {
-    const { email } = req.user;
+    const { email,role } = req.user;
 
     let returnableObj = [];
     let products;

@@ -127,6 +127,7 @@ const addResellerUserController = async (req, res) => {
           address: user.address,
           firmName: user.firm_name,
           productsList: user.products_list,
+          accessStatus: !!user.access_status
           }));
         return res.status(200).json({
           success: true,
@@ -400,6 +401,37 @@ const addResellerUserController = async (req, res) => {
           });
         }
       }
+
+    const changeAccessStatusController = async (req, res) => {
+  const { email, accessStatus } = req.body;
+
+ console.log("changeAccessStatus inputs:", { email, accessStatus })
+  try {
+    const [result] = await Reseller.changeAccessStatus(accessStatus,email);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No user found with the provided email.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Access status updated successfully.",
+    });
+  } catch (error) {
+    console.error("Failed to change access status:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to change access status.",
+      error: error.message,
+    });
+  }
+};
+
+
+
  
   module.exports = {
     addResellerUserController,
@@ -409,5 +441,7 @@ const addResellerUserController = async (req, res) => {
     updateResellerUserFirmInfoController,
     removeResellerUserController,
     removeDeviceFromResellerUser,
-    fetchAllVendorIdsController
+    changeAccessStatusController,
+    fetchAllVendorIdsController,
+    
   }

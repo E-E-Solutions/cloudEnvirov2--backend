@@ -106,13 +106,19 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
       const [existedVendorId] = await Reseller.vendorIdExists(email,resolvedVendorId)
        console.log("existed",existedVendorId)
       const roleRow = await Users.findRoleByEmail(email);
-       
-        const roleId = roleRow.role_id;
-
+      let roleId
+       if(roleRow){
+         roleId = roleRow.role_id;
+       }
       const [userDetails] = await Users.findByRole(email,roleId)
-      console.log(userDetails)
      
       const [userRole]= userDetails.map((user)=>user.role)
+      if(userRole === "admin"){
+         const [adminResult] = await Users.findByEmail(email);
+
+      user = adminResult[0];
+      currentUser = user;
+      }
       if(userRole === "reseller" && existedVendorId[0].vendor_id === resolvedVendorId){
 
       const [resellerResult] = await Users.findByEmail(email);
@@ -138,7 +144,14 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
       });
       }
       else{
-      
+      const isAllowedAccess = await Reseller.findAccessStatus(email)
+      if(!isAllowedAccess.accessStatus){
+            return res.status(404).json({
+              success: false,
+              message: "Your service has ended. Please contact the account administrator for assistance.",
+
+            });
+      }
       const [resellerUserResult] = await Reseller.findResellersUserByEmailId(email);
       currentUser = resellerUserResult[0]; 
       if(currentUser){
@@ -148,7 +161,6 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
       isReseller = true;
 
       if(isReseller){
-      const updatedId = await Reseller.addVendorId(resolvedVendorId,email)
       const [rows] = await Reseller.fetchResellerUserDevices(email);
       
           if (rows.length === 0) {
@@ -160,6 +172,17 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
           let deviceIds = [];
           try {
             deviceIds = JSON.parse(rows[0].products_list || "[]");
+            for(let i = 1;i<deviceIds.length;i++){
+              const deviceId = deviceIds[i]
+            const validateDevice = Admin.checkDevice(deviceId)
+              if (!validateDevice[0] && existedVendorId[0].vendor_id ===null) {
+            return res.status(400).json({
+              success: false,
+              message: `You own an invalid Device Id in your Account. Please Contact Support!`,
+                });
+              }
+            }
+            const updatedId = await Reseller.addVendorId(resolvedVendorId,email)
           } catch (err) {
             return res.status(500).json({
               success: false,
@@ -199,7 +222,7 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
       }
     
       else{
-         return res.status(400).json({
+         return res.status(401).json({
         success: false,
         message: "You are not Authorised to get Access!",
       });
@@ -242,7 +265,10 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
 
     const productsList = await deviceIds.reduce(async (acc, deviceId) => {
       const [response] = await GetDeviceInfo(deviceId);
-      const alias = (await response[0].alias) || deviceId;
+      let alias;
+      if(response[0]){
+      alias = (await response[0].alias) || deviceId;
+      }
       acc = [...(await acc), { deviceId, alias }];
       return acc;
     }, []);

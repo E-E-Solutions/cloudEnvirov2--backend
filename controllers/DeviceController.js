@@ -333,7 +333,7 @@ const GetUserDevicesInfoController = async (req, res) => {
 
         // Get location and address for the device
         const [deviceInfo] = await Device.GetDeviceInfo(deviceId);
-
+        if(deviceInfo[0]){
         console.log({ deviceInfo: deviceInfo[0] });
 
         const { type: deviceType, sno, created_on, alias } = deviceInfo[0];
@@ -341,6 +341,7 @@ const GetUserDevicesInfoController = async (req, res) => {
         // return;
 
         const [long, lat, address] = deviceInfo[0].dev_location.split(";");
+
 
         // Attach location info to the device's status object
         objValue.deviceId = deviceId;
@@ -350,9 +351,10 @@ const GetUserDevicesInfoController = async (req, res) => {
         objValue.alias = alias;
         objValue.location = [lat, long];
         objValue.address = address;
-        console.log("objj", objValue)
         return { ...objValue };
+        }
       })
+    
     );
 
     // Respond with the final result

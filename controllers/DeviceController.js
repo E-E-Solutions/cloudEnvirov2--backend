@@ -48,8 +48,8 @@ const AddDeviceController = async (req, res) => {
 
     let existingProducts;
     if (role === "resellerUser") {
-      const resellerEmail = currentUser.reseller_email
-      const verifyResellerDevices = await Reseller.checkDevice(resellerEmail,deviceId);
+      const vendorId = currentUser.vendor_id
+      const verifyResellerDevices = await Reseller.checkDevice(vendorId,deviceId);
       if (!verifyResellerDevices[0][0]) {
         return res.status(400).json({
           success: false,
@@ -350,6 +350,7 @@ const GetUserDevicesInfoController = async (req, res) => {
         objValue.alias = alias;
         objValue.location = [lat, long];
         objValue.address = address;
+        console.log("objj", objValue)
         return { ...objValue };
       })
     );
@@ -475,7 +476,8 @@ const DeleteDeviceController = async (req, res) => {
     let result;
 
     if (role === "reseller") {
-      const [resellerUsersResult] = await Reseller.fetchResellerUsers(email);
+      const vendorId = await Reseller.findVendorId(email)
+      const [resellerUsersResult] = await Reseller.fetchResellerUsers(vendorId);
       const userEmails = resellerUsersResult.map((u) => u.email);
 
       // Update all associated reseller users

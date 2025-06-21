@@ -15,17 +15,64 @@ const { GetDeviceInfo } = require("../models/Device");
 
 const { oauth2client } = require("../utils/googleConfig");
 const Reseller = require("../models/Reseller");
+const { stringify } = require("querystring");
 // const Admin = require("../models/Admin");
+const crypto = require("crypto");
 
+function decryptVendorId({ cipherText, iv }, secretKey) {
+  const salt = Buffer.from("my-salt", "utf8");
+  const ivBuffer = Buffer.from(iv, "base64");
+  const encryptedBuffer = Buffer.from(cipherText, "base64");
 
-var client = new postmark.ServerClient(process.env.POSTMARK_API_KEY);
+  // Derive key from password
+  const key = crypto.pbkdf2Sync(secretKey, salt, 100000, 32, "sha256");
+
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, ivBuffer);
+
+  // ✅ Web Crypto includes the auth tag automatically at the end of the cipherText
+  // But Node expects it set explicitly, so we must extract it manually
+  const authTag = encryptedBuffer.slice(encryptedBuffer.length - 16);
+  const actualEncrypted = encryptedBuffer.slice(0, encryptedBuffer.length - 16);
+
+  decipher.setAuthTag(authTag);
+
+  let decrypted = decipher.update(actualEncrypted, undefined, "utf8");
+  decrypted += decipher.final("utf8");
+
+  return decrypted;
+}
+
 // ======================================================== Login controller ===============================================================
 const loginController = async (req, res) => {
-  try {
-    const { email, password } = req.body;
 
-    if (!validateRequestBody(req.body, ["email", "password"])) {
-      return res.status(400).json({
+  try {
+ const { email, password, vendorId } = req.body;
+
+let resolvedVendorId;
+if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.iv) {
+  try {
+    resolvedVendorId = await decryptVendorId(vendorId,  process.env.VENDOR_SECRET_KEY);
+    console.log("Decrypted Vendor ID:", resolvedVendorId);
+  } catch (err) {
+    console.error("Decryption error:", err);
+    return res.status(400).json({
+      success: false,
+      message: "Failed to decrypt vendor ID",
+    });
+  }
+}
+
+
+
+    // if (!validateRequestBody(req.body, ["email", "password"])) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Request body should contain - email and password",
+    //   });
+    // }
+
+    if(!email ||!password){
+        return res.status(400).json({
         success: false,
         message: "Request body should contain - email and password",
       });
@@ -38,16 +85,127 @@ const loginController = async (req, res) => {
       });
     }
 
+    let currentUser;
+    let isReseller;
     const [userResult] = await Users.findByEmail(email);
-    const user = userResult[0];
+    let user = userResult[0];
+    if(!resolvedVendorId){
 
-    let currentUser = user;
-    let isReseller = false;
+    currentUser = user;
+    console.log({currentUser})
+    isReseller = false;
+    }
 
     if (!currentUser) {
-      const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
-      currentUser = resellerResult[0];
+      if(!resolvedVendorId){
+        return res.status(400).json({
+        success: false,
+        message: "Please provide Vendor Id!",
+      });
+      }
+      const [existedVendorId] = await Reseller.vendorIdExists(email,resolvedVendorId)
+       console.log("existed",existedVendorId)
+      const roleRow = await Users.findRoleByEmail(email);
+       
+        const roleId = roleRow?.role_id;
+
+      const [userDetails] = await Users.findByRole(email,roleId)
+      console.log(userDetails)
+     
+      const [userRole]= userDetails.map((user)=>user.role)
+      if(userRole === "reseller" && existedVendorId[0].vendor_id === resolvedVendorId){
+
+      const [resellerResult] = await Users.findByEmail(email);
+
+      user = resellerResult[0];
+      currentUser = user;
+      if(currentUser){
+        await Users.updateLastLoginForReseller(email)
+      }   
+     }
+     
+      if(!currentUser){
+      const [existedVendorId] = await Reseller.vendorUserIdExists(email,resolvedVendorId)
+
+       if((existedVendorId && existedVendorId[0]?.vendor_id === resolvedVendorId)  || existedVendorId[0]?.vendor_id ===null){
+        
+      const [matchVendorId] = await Reseller.checkVendorId(resolvedVendorId)
+      console.log({matchVendorId})
+      if(matchVendorId.length<=0){
+        return res.status(400).json({
+        success: false,
+        message: "Vendor Id doesn't exists!",
+      });
+      }
+      else{
+      
+      const [resellerUserResult] = await Reseller.findResellersUserByEmailId(email);
+      currentUser = resellerUserResult[0];  
+      console.log("reseller",currentUser)
+      if(currentUser){
+        await Users.updateLastLoginForResellerUser(email)
+      } 
+    
       isReseller = true;
+
+      if(isReseller){
+      const updatedId = await Reseller.addVendorId(resolvedVendorId,email)
+      const [rows] = await Reseller.fetchResellerUserDevices(email);
+      
+          if (rows.length === 0) {
+            return res.status(404).json({
+              success: false,
+              message: "User not found.",
+            });
+          }
+          let deviceIds = [];
+          try {
+            deviceIds = JSON.parse(rows[0].products_list || "[]");
+          } catch (err) {
+            return res.status(500).json({
+              success: false,
+              message: "Failed to parse device list.",
+              error: err.message,
+            });
+          }
+        const [resellerRows] = await Reseller.findReseller(resolvedVendorId);
+        if (resellerRows.length > 0) {
+          const resellerEmail = resellerRows[0].email;
+
+            const resellerDevices = await Reseller.fetchResellerDevices(resellerEmail);
+            const productsListRaw = resellerDevices[0][0].products_list;
+
+            let mergedList;
+
+            if (productsListRaw !== null) {
+              let parsedList = [];
+
+              try {
+                parsedList = JSON.parse(productsListRaw); // Convert string to array
+              } catch (err) {
+                console.error("Invalid JSON in products_list:", productsListRaw);
+                parsedList = []; // fallback
+              }
+
+              mergedList = Array.from(new Set([...parsedList, ...deviceIds]));
+            } else {
+              mergedList = deviceIds;
+            }
+
+              updateResult = await Admin.updateResellerDeviceInfo(resellerEmail, mergedList);
+              await Admin.updateUserDeviceInfo(resellerEmail, mergedList);
+        } 
+        }
+      }
+      }
+    
+      else{
+         return res.status(400).json({
+        success: false,
+        message: "You are not Authorised to get Access!",
+      });
+      }
+      }
     }
 
     if (!currentUser) {
@@ -85,7 +243,7 @@ const loginController = async (req, res) => {
 
     const productsList = await deviceIds.reduce(async (acc, deviceId) => {
       const [response] = await GetDeviceInfo(deviceId);
-      const alias = (await response[0].alias) || deviceId;
+      const alias = (await response[0]?.alias) || deviceId;
       acc = [...(await acc), { deviceId, alias }];
       return acc;
     }, []);

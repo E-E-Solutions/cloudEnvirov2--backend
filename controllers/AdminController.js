@@ -610,12 +610,13 @@ const updateUserDeviceInfoController = async (req, res) => {
       const roleId = await Admin.findRoleId(role);
   
       if (role === "reseller") {
-        if (!name || !Array.isArray(deviceIds) || deviceIds.length === 0) {
+        if (!name || !vendorId) {
           return res.status(400).json({
             success: false,
-            message: "Name and deviceIds (array) are required for resellers.",
+            message: "Name and vendorId are required for resellers.",
           });
         }
+        if(deviceIds){
   
         deviceIds = deviceIds.map((id) => id.toUpperCase());
   
@@ -644,6 +645,7 @@ const updateUserDeviceInfoController = async (req, res) => {
             message: "Duplicate device IDs are not allowed.",
           });
         }
+      }
          
   
         await Admin.addUserByAdmin(email, password, roleId,deviceIds);

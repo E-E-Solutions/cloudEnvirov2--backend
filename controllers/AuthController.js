@@ -106,8 +106,10 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
       const [existedVendorId] = await Reseller.vendorIdExists(email,resolvedVendorId)
        console.log("existed",existedVendorId)
       const roleRow = await Users.findRoleByEmail(email);
-       
-        const roleId = roleRow?.role_id;
+      let roleId;
+      if(roleRow){       
+      roleId = roleRow.role_id;
+      }
 
       const [userDetails] = await Users.findByRole(email,roleId)
       console.log(userDetails)
@@ -127,7 +129,7 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
       if(!currentUser){
       const [existedVendorId] = await Reseller.vendorUserIdExists(email,resolvedVendorId)
 
-       if((existedVendorId && existedVendorId[0]?.vendor_id === resolvedVendorId)  || existedVendorId[0]?.vendor_id ===null){
+       if((existedVendorId && existedVendorId[0].vendor_id === resolvedVendorId)  || existedVendorId[0].vendor_id ===null){
         
       const [matchVendorId] = await Reseller.checkVendorId(resolvedVendorId)
       console.log({matchVendorId})
@@ -243,10 +245,14 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
 
     const productsList = await deviceIds.reduce(async (acc, deviceId) => {
       const [response] = await GetDeviceInfo(deviceId);
-      const alias = (await response[0]?.alias) || deviceId;
+      let alias;
+      if(response){
+      alias = (await response[0].alias) || deviceId;
+      }
       acc = [...(await acc), { deviceId, alias }];
       return acc;
     }, []);
+  
   
     res.status(200).json({
       success: true,

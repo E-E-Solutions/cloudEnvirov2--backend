@@ -168,6 +168,23 @@ static async fetchResellerUserDevices(email) {
           static async findVendorEmail(vendorId){
             return db.execute(`SELECT email FROM reseller_info WHERE vendor_id = ?`,[vendorId])
           }
-          
+          static async revokeDeviceIdForResellerUser(email,vendorId,deviceId){
+            return db.execute(`INSERT INTO device_status_info (email,vendor_id,device_id,is_active,revoked_on) VALUES (?,?,?,false,NOW())`, [email,vendorId,deviceId])
+          }
+            static async revokeDeviceIdForResellerUserUpdate(deviceId){
+            return db.execute(`UPDATE device_status_info SET is_active = false, revoked_on = NOW() WHERE device_id = ?`, [deviceId])
+          }
+         static async grantDeviceIdToResellerUser(deviceId) {
+          return db.execute(
+            `UPDATE device_status_info SET is_active = true, granted_on = NOW() WHERE device_id = ?`,
+            [ deviceId]
+          );
+          }
+          static async findRevokedDeviceId(deviceId){
+            return db.execute(`SELECT * FROM device_status_info WHERE device_id = ?`, [deviceId])
+          }
+          static async fetchAllRevokedDeviceIds(email){
+            return db.execute(`SELECT * FROM device_status_info WHERE email = ?`, [email])
+          }
       
 }

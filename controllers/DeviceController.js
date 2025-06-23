@@ -289,7 +289,7 @@ const GetUserDevicesInfoController = async (req, res) => {
     let productsList = JSON.parse(products);
     console.log({ productsList });
 
-    if (productsList.length === 0) {
+    if (productsList === null || productsList.length === 0) {
       return res.status(401).json({
         success: false,
         message:
@@ -382,9 +382,8 @@ const GetUserDevicesStatusController = async (req, res) => {
 
     let productsList = JSON.parse(products);
     console.log({ productsList });
-
-    if (productsList.length === 0) {
-      return res.status(401).json({
+    if (productsList === null || productsList.length === 0) {
+      return res.status(401).json({ 
         success: false,
         message:
           "No device found in the products list. Please Add your device to access the data",

@@ -8,12 +8,29 @@ const {
   getDeviceType,
 } = require("../utils/common");
 const Settings = require("../models/Settings");
+const Reseller = require("../models/Reseller");
 
 const GetLatestData = async (req, res) => {
   try {
     const { email, role } = req.user;
     const { deviceId: rawDeviceId } = req.query;
     const deviceId = rawDeviceId.toUpperCase(); // Ensure deviceId is uppercase
+
+    if (role === "resellerUser") {
+      const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
+     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+    const isAnyRevoked = validateDeviceId[0].map(
+      (device) => device.is_active
+    );
+        if (isAnyRevoked == 0) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "Access to this device's data has been revoked. For help, please reach out to your account administrator.",
+          });
+        }
+      }
+    }
 
     let existingProducts;
     if (role === "resellerUser") {
@@ -26,9 +43,10 @@ const GetLatestData = async (req, res) => {
 
     existingProducts = existingProducts === "" ? "[]" : existingProducts;
     // Convert from JSON string if needed
-    existingProducts = typeof existingProducts === "string"
-      ? JSON.parse(existingProducts)
-      : existingProducts;
+    existingProducts =
+      typeof existingProducts === "string"
+        ? JSON.parse(existingProducts)
+        : existingProducts;
 
     if (!existingProducts.includes(deviceId) && role !== "admin") {
       return res.status(401).json({
@@ -36,8 +54,6 @@ const GetLatestData = async (req, res) => {
         message: "You are not authorized to get the data of this device.",
       });
     }
-
-
     const DataObj = new Data(deviceId);
     const latestDataObj = await DataObj.getLatestData();
 
@@ -122,17 +138,35 @@ const GetLatestData = async (req, res) => {
     });
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error | " + er });
+    res
+      .status(500)
+      .send({ success: false, message: "Internal Server Error | " + er });
   }
 };
 
-
 const GetSelectedDeviceStatusAndLocation = async (req, res) => {
   try {
-    const { email } = req.user;
+    const { email, role } = req.user;
     const { deviceId } = req.query;
     let returnableObj = [];
     let deviceDataObj = {};
+
+    if (role === "resellerUser") {
+      const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
+     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+    const isAnyRevoked = validateDeviceId[0].map(
+      (device) => device.is_active
+    );
+        if (isAnyRevoked == 0) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "Access to this device's data has been revoked. For help, please reach out to your account administrator.",
+          });
+        }
+      }
+    }
+
     const DataObj = new Data(deviceId);
     let data = await DataObj.getLatestData();
 
@@ -175,10 +209,11 @@ const GetSelectedDeviceStatusAndLocation = async (req, res) => {
 
 const GetDeviceStatusAndLocation = async (req, res) => {
   try {
-    const { email,role } = req.user;
+    const { email, role } = req.user;
 
     let returnableObj = [];
     let products;
+
     if (role === "resellerUser") {
       products = await Users.getResellerUserProducts(email);
     } else {
@@ -198,6 +233,22 @@ const GetDeviceStatusAndLocation = async (req, res) => {
 
     // First, get the status for each device
     const result = await productsList.reduce(async (acc, deviceId) => {
+      if (role === "resellerUser") {
+      const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
+     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+    const isAnyRevoked = validateDeviceId[0].map(
+      (device) => device.is_active
+    );
+        if (isAnyRevoked == 0) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "Access to this device's data has been revoked. For help, please reach out to your account administrator.",
+          });
+        }
+      }
+    }
+
       let obj = await acc;
       const DataObj = new Data(deviceId);
       let data = await DataObj.getLatestData();
@@ -284,7 +335,7 @@ const GetDeviceStatusAndLocation = async (req, res) => {
 
 const GetDataPointsPerYear = async (req, res) => {
   try {
-    const { email,role } = req.user;
+    const { email, role } = req.user;
 
     if (!validateRequestBody(req.query, ["deviceId", "year"])) {
       return res.status(400).json({
@@ -296,7 +347,7 @@ const GetDataPointsPerYear = async (req, res) => {
 
     let returnableObj = [];
     let products = await Users.getProducts(email);
-    if (!products.includes(deviceId)  && role !== "admin") {
+    if (!products.includes(deviceId) && role !== "admin") {
       return res.status(400).send({
         success: false,
         message: "You are not authorized to access this device",
@@ -373,7 +424,7 @@ const GetLastAvgDataByDays = async (req, res) => {
 
 const GetLastDataByDuration = async (req, res) => {
   try {
-    const { email } = req.user;
+    const { email, role } = req.user;
     console.log({ email });
 
     if (!validateRequestBody(req.query, ["deviceId", "duration"].sort())) {
@@ -383,12 +434,28 @@ const GetLastDataByDuration = async (req, res) => {
       });
     }
     const { deviceId, duration } = req.query;
+    if (role === "resellerUser") {
+      const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
+     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+    const isAnyRevoked = validateDeviceId[0].map(
+      (device) => device.is_active
+    );
+        if (isAnyRevoked == 0) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "Access to this device's data has been revoked. For help, please reach out to your account administrator.",
+          });
+        }
+      }
+    }
+
 
     let result = await Data.getLastDataByDuration(deviceId, duration);
     // console.log({ data });
 
-    if(!result.data[0]){
-      return
+    if (!result.data[0]) {
+      return;
     }
     const paraInfo = await Device.getMultiParaInfo([
       ...Object.keys(result.data[0]),
@@ -445,19 +512,19 @@ const GetLastDataByDuration = async (req, res) => {
       if (obj.bv) delete obj.bv;
 
       const data = Object.entries(obj).reduce((acc, [key, value]) => {
-  const displayKey = paraObj[key] || key;
-const numericValue = Number(value);
-const isDate = !isNaN(Date.parse(value));
+        const displayKey = paraObj[key] || key;
+        const numericValue = Number(value);
+        const isDate = !isNaN(Date.parse(value));
 
-const roundedValue = isDate
-  ? value
-  : isNaN(numericValue)
-    ? value
-    : parseFloat(numericValue.toFixed(1));
+        const roundedValue = isDate
+          ? value
+          : isNaN(numericValue)
+          ? value
+          : parseFloat(numericValue.toFixed(1));
 
-  acc[displayKey] = roundedValue;
-  return acc;
-}, {});
+        acc[displayKey] = roundedValue;
+        return acc;
+      }, {});
       console.log({ data });
 
       return data;
@@ -474,12 +541,29 @@ const roundedValue = isDate
 
 const GetLastAvgDataByCustomDuration = async (req, res) => {
   try {
-    const { email } = req.user;
+    const { email, role } = req.user;
     const { from, to, average, duration } = req.body;
     const { deviceId } = req.query;
     let result = null;
 
     console.log({ body: req.body });
+
+    if (role === "resellerUser") {
+      const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
+     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+    const isAnyRevoked = validateDeviceId[0].map(
+      (device) => device.is_active
+    );
+        if (isAnyRevoked == 0) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "Access to this device's data has been revoked. For help, please reach out to your account administrator.",
+          });
+        }
+      }
+    }
+
 
     if (
       !(
@@ -559,17 +643,21 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
       if (obj.lt) delete obj.lt;
       if (obj.bv) delete obj.bv;
 
-     const data = Object.entries(obj).reduce((acc, [key, value]) => {
-  const displayKey = paraObj[key] || key;
-  // Round if value is a number
-const numericValue = Number(value);
-const isDate = !isNaN(Date.parse(value));
+      const data = Object.entries(obj).reduce((acc, [key, value]) => {
+        const displayKey = paraObj[key] || key;
+        // Round if value is a number
+        const numericValue = Number(value);
+        const isDate = !isNaN(Date.parse(value));
 
-const roundedValue = isDate? value: isNaN(numericValue) ? value: parseFloat(numericValue.toFixed(1));
+        const roundedValue = isDate
+          ? value
+          : isNaN(numericValue)
+          ? value
+          : parseFloat(numericValue.toFixed(1));
 
-  acc[displayKey] = roundedValue;
-  return acc;
-}, {});
+        acc[displayKey] = roundedValue;
+        return acc;
+      }, {});
 
       console.log(data);
 
@@ -579,7 +667,9 @@ const roundedValue = isDate? value: isNaN(numericValue) ? value: parseFloat(nume
     res.status(200).json({ success: true, data: customReport, deviceId });
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error", detail:er });
+    res
+      .status(500)
+      .send({ success: false, message: "Internal Server Error", detail: er });
   }
 };
 const GetAllParametersData = async (req, res) => {
@@ -587,6 +677,7 @@ const GetAllParametersData = async (req, res) => {
     const { email, role } = req.user;
 
     // Fetch products based on role
+   
     let existingProducts;
     if (role === "resellerUser") {
       existingProducts = await Users.getResellerUserProducts(email);
@@ -599,99 +690,119 @@ const GetAllParametersData = async (req, res) => {
     existingProducts = existingProducts === "" ? "[]" : existingProducts;
 
     // Convert from JSON string if needed
-    existingProducts = typeof existingProducts === "string"
-      ? JSON.parse(existingProducts)
-      : existingProducts;
+    existingProducts =
+      typeof existingProducts === "string"
+        ? JSON.parse(existingProducts)
+        : existingProducts;
 
     // existingProducts should be an array now
     // Process each deviceId asynchronously and gather results
-    const allDevicesData = await Promise.all(existingProducts.map(async (deviceId) => {
-      const DataObj = new Data(deviceId);
-      const latestDataObj = await DataObj.getLatestData();
-
-      if (!latestDataObj) {
-        // If no data for this device, skip it by returning null or empty
-        return null;
+    const allDevicesData = await Promise.all(
+      
+      existingProducts.map(async (deviceId) => {
+       if (role === "resellerUser") {
+      const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
+     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+    const isAnyRevoked = validateDeviceId[0].map(
+      (device) => device.is_active
+    );
+        if (isAnyRevoked == 0) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "Access to this device's data has been revoked. For help, please reach out to your account administrator.",
+          });
+        }
       }
+    }
 
-      const data = latestDataObj.latestData[0];
-      const dailyAverages = latestDataObj.dailyAverages[0];
+        const DataObj = new Data(deviceId);
+        const latestDataObj = await DataObj.getLatestData();
 
-      const deviceType = getDeviceType(deviceId);
-      const [deviceTypeInfo] = await Device.getDeviceTypeInfo(deviceType);
-      const { ts_col_name, useless_col } = deviceTypeInfo[0];
-      const deleteColumns = JSON.parse(useless_col);
-      deleteColumns.forEach((col) => delete data[col]);
+        if (!latestDataObj) {
+          // If no data for this device, skip it by returning null or empty
+          return null;
+        }
 
-      const ts_server = data[ts_col_name];
-      delete data[ts_col_name];
+        const data = latestDataObj.latestData[0];
+        const dailyAverages = latestDataObj.dailyAverages[0];
 
-      // Process each parameter in data
-      const LatestData = await Promise.all(
-        Object.entries(data).map(async ([key, value]) => {
-          try {
-            const settings = new Settings(email);
-            let [setting] = await settings.getSettings();
-            setting = setting[0];
-            const paraInfo = setting ? JSON.parse(setting.para_info) : {};
-            let deviceSettings = paraInfo[deviceId];
+        const deviceType = getDeviceType(deviceId);
+        const [deviceTypeInfo] = await Device.getDeviceTypeInfo(deviceType);
+        const { ts_col_name, useless_col } = deviceTypeInfo[0];
+        const deleteColumns = JSON.parse(useless_col);
+        deleteColumns.forEach((col) => delete data[col]);
 
-            if (deviceSettings && deviceSettings[key]) {
+        const ts_server = data[ts_col_name];
+        delete data[ts_col_name];
+
+        // Process each parameter in data
+        const LatestData = await Promise.all(
+          Object.entries(data).map(async ([key, value]) => {
+            try {
+              const settings = new Settings(email);
+              let [setting] = await settings.getSettings();
+              setting = setting[0];
+              const paraInfo = setting ? JSON.parse(setting.para_info) : {};
+              let deviceSettings = paraInfo[deviceId];
+
+              if (deviceSettings && deviceSettings[key]) {
+                return {
+                  key,
+                  name: deviceSettings[key].name,
+                  unit: deviceSettings[key].unit,
+                  minimum: deviceSettings[key].minimum,
+                  maximum: deviceSettings[key].maximum,
+                  threshold: deviceSettings[key].threshold,
+                  value: value,
+                  average:
+                    dailyAverages && Number(dailyAverages[`${key}`]).toFixed(0),
+                };
+              }
+
+              // If no device-specific setting, get default para info
+              const [response] = await Device.getParaInfo(key);
+              const responseObj = response[0];
               return {
                 key,
-                name: deviceSettings[key].name,
-                unit: deviceSettings[key].unit,
-                minimum: deviceSettings[key].minimum,
-                maximum: deviceSettings[key].maximum,
-                threshold: deviceSettings[key].threshold,
+                name: responseObj.para_name,
+                unit: responseObj.para_unit,
                 value: value,
-                average:
-                  dailyAverages && Number(dailyAverages[`${key}`]).toFixed(0),
+                minimum: responseObj.min,
+                maximum: responseObj.max,
               };
+            } catch (er) {
+              console.log(er);
+              return null;
             }
+          })
+        );
 
-            // If no device-specific setting, get default para info
-            const [response] = await Device.getParaInfo(key);
-            const responseObj = response[0];
-            return {
-              key,
-              name: responseObj.para_name,
-              unit: responseObj.para_unit,
-              value: value,
-              minimum: responseObj.min,
-              maximum: responseObj.max,
-            };
-          } catch (er) {
-            console.log(er);
-            return null;
-          }
-        })
-      );
+        const [dataObj] = await Data.getDataAvailabilityYears(deviceId);
+        const years = dataObj.map((obj) => obj.year);
 
-      const [dataObj] = await Data.getDataAvailabilityYears(deviceId);
-      const years = dataObj.map((obj) => obj.year);
+        const tsServer = new Date(ts_server) || ts_server;
+        const gmtOffset = tsServer.getTimezoneOffset() * 60000;
+        const adjustedTimestamp = tsServer.getTime() + gmtOffset;
 
-      const tsServer = new Date(ts_server) || ts_server;
-      const gmtOffset = tsServer.getTimezoneOffset() * 60000;
-      const adjustedTimestamp = tsServer.getTime() + gmtOffset;
-
-      return {
-        deviceId,
-        data: LatestData,
-        time: adjustedTimestamp,
-        dataAvailabilityYears: years.sort((a, b) => b - a),
-        status: getStatus(ts_server),
-        other: {
-          gmtOffset,
-          tsServer,
-          adjustedTimestamp,
-          ts: new Date(adjustedTimestamp),
-        },
-      };
-    }));
+        return {
+          deviceId,
+          data: LatestData,
+          time: adjustedTimestamp,
+          dataAvailabilityYears: years.sort((a, b) => b - a),
+          status: getStatus(ts_server),
+          other: {
+            gmtOffset,
+            tsServer,
+            adjustedTimestamp,
+            ts: new Date(adjustedTimestamp),
+          },
+        };
+      })
+    );
 
     // Filter out null devices (devices with no data)
-    const filteredDevicesData = allDevicesData.filter(d => d !== null);
+    const filteredDevicesData = allDevicesData.filter((d) => d !== null);
 
     if (filteredDevicesData.length === 0) {
       return res.status(404).json({
@@ -704,16 +815,17 @@ const GetAllParametersData = async (req, res) => {
       success: true,
       devices: filteredDevicesData,
     });
-
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error | " + er });
+    res
+      .status(500)
+      .send({ success: false, message: "Internal Server Error | " + er });
   }
 };
 const GetAllDevicesLatestData = async (req, res) => {
   try {
-    const { deviceId:rawDeviceId } = req.query;
-    const deviceId = rawDeviceId.toUpperCase(); 
+    const { deviceId: rawDeviceId } = req.query;
+    const deviceId = rawDeviceId.toUpperCase();
 
     const DataObj = new Data(deviceId);
     const latestDataObj = await DataObj.getLatestData();
@@ -799,7 +911,9 @@ const GetAllDevicesLatestData = async (req, res) => {
     });
   } catch (er) {
     console.log(er);
-    res.status(500).send({ success: false, message: "Internal Server Error | " + er });
+    res
+      .status(500)
+      .send({ success: false, message: "Internal Server Error | " + er });
   }
 };
 
@@ -812,5 +926,5 @@ module.exports = {
   GetLastDataByDuration,
   GetLastAvgDataByCustomDuration,
   GetAllParametersData,
-  GetAllDevicesLatestData
+  GetAllDevicesLatestData,
 };

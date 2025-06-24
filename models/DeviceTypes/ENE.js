@@ -235,11 +235,45 @@ class ENE {
           const latestData = latestRow[0];
 
           if (average === "no_average") {
-            const query = `SELECT * FROM ?? WHERE ts_server BETWEEN ? AND ? ORDER BY ts_server;`;
+         // Get all column names except ts_server, ts_client, and _id
+            const columnsQuery = `
+              SELECT COLUMN_NAME 
+              FROM INFORMATION_SCHEMA.COLUMNS 
+              WHERE TABLE_NAME = ? 
+                AND COLUMN_NAME NOT IN ('ts_server', 'ts_client', '_id')
+            `;
+
+            const columnResult = await db.query(columnsQuery, [deviceId]);
+
+            // Build the SELECT list: timeStamp as the first column
+            const selectedColumns = columnResult[0]
+              .map((col) => `\`${col.COLUMN_NAME}\``)
+              .join(", ");
+
+            const query = `
+              SELECT ts_client AS timeStamp${selectedColumns ? `, ${selectedColumns}` : ''} 
+              FROM ?? 
+              WHERE ts_server BETWEEN ? AND ? 
+              ORDER BY ts_server;
+            `;
+
+          const data = await db.query(query, [deviceId, from, to]);
+
+            // Format timeStamp before returning
+            const formatDate = (d) => {
+              const date = new Date(d);
+              const pad = (n) => n.toString().padStart(2, "0");
+              return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+            };
+
+            const formattedData = data[0].map(row => ({
+              ...row,
+              timeStamp: formatDate(row.timeStamp)
+            }));
+
+            return resolve({ data: formattedData });
             // Fetch the averages for the day of the latest data point
-            const data = await db.query(query, [deviceId, from, to]);
-            // console.log({ avgValue: data[0] });
-            resolve({ data: data[0] });
+           
           }
 
           // console.log({ latestData });

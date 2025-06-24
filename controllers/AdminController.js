@@ -439,7 +439,12 @@ const updateUserDeviceInfoController = async (req, res) => {
       // Step 2: If current role is reseller, clean up reseller data
       if (currentRoleName === "reseller") {
           const vendorIds = await Reseller.findVendorId(email)
-       const vendorId = vendorIds[0][0].vendor_id
+
+        let vendorId;
+        if(vendorIds[0][0]) {
+       vendorId = vendorIds[0][0].vendor_id
+        }
+
         await Admin.removeReseller(email);
       
         await Admin.removeAllResellerUsers(vendorId);

@@ -106,10 +106,13 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
       const [existedVendorId] = await Reseller.vendorIdExists(email,resolvedVendorId)
        console.log("existed",existedVendorId)
       const roleRow = await Users.findRoleByEmail(email);
-      let roleId
-       if(roleRow){
-         roleId = roleRow.role_id;
-       }
+
+      let roleId;
+      if(roleRow){       
+      roleId = roleRow.role_id;
+      }
+
+
       const [userDetails] = await Users.findByRole(email,roleId)
      
       const [userRole]= userDetails.map((user)=>user.role)
@@ -266,12 +269,15 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
     const productsList = await deviceIds.reduce(async (acc, deviceId) => {
       const [response] = await GetDeviceInfo(deviceId);
       let alias;
+
       if(response[0]){
+
       alias = (await response[0].alias) || deviceId;
       }
       acc = [...(await acc), { deviceId, alias }];
       return acc;
     }, []);
+  
   
     res.status(200).json({
       success: true,

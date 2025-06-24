@@ -127,6 +127,7 @@ const addResellerUserController = async (req, res) => {
           address: user.address,
           firmName: user.firm_name,
           productsList: user.products_list,
+          accessStatus: !!user.access_status
           }));
         return res.status(200).json({
           success: true,
@@ -400,7 +401,127 @@ const addResellerUserController = async (req, res) => {
           });
         }
       }
- 
+
+    const changeAccessStatusController = async (req, res) => {
+  const { email, accessStatus } = req.body;
+
+  try {
+    const [result] = await Reseller.changeAccessStatus(accessStatus,email);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No user found with the provided email.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Access status updated successfully.",
+    });
+  } catch (error) {
+    console.error("Failed to change access status:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to change access status.",
+      error: error.message,
+    });
+  }
+};
+
+const fetchAllRevokedDeviceIdsController = async(req,res)=>{
+  const {email} = req.user;
+  try{
+    const [revokedDeviceIds] = await Reseller.fetchAllRevokedDeviceIds(email)
+    console.log(revokedDeviceIds)
+     const revokedDeviceId = revokedDeviceIds.map(id => ({
+     
+          deviceId: id.device_id,
+          isActive: !!id.is_active,
+           }));
+     return res.status(200).json({
+      success: true,
+      message: "Revoke Device Ids fetched successfully.",
+      data: revokedDeviceId
+    });
+  }
+  catch (error) {
+    console.error("Device access update failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update device access.",
+      error: error.message,
+    });
+  }
+
+}
+
+const deviceIdAccessController = async (req, res) => {
+  const {email} = req.user;
+  const {deviceId, isActive } = req.body;
+
+  // Optional: Validate inputs
+  if (!email  || !deviceId || typeof isActive !== "boolean") {
+    return res.status(400).json({
+      success: false,
+      message: "Missing or invalid parameters.",
+    });
+  }
+
+  try {
+    const [vendorIds] = await Reseller.findVendorId(email)
+    const vendorId = vendorIds[0].vendor_id;
+    if (!isActive) {
+      // isActive true => grant access
+      const [revokedDevices] = await Reseller.findRevokedDeviceId(deviceId);
+       const isRevoked = revokedDevices.some(
+        (d) => d.device_id === deviceId
+      );
+
+      if (!isRevoked) {
+       await Reseller.revokeDeviceIdForResellerUser(email, vendorId, deviceId);
+      return res.status(200).json({
+        success: true,
+        message: "Device access revoked successfully.",
+      });
+      }
+      await Reseller.revokeDeviceIdForResellerUserUpdate( deviceId);
+      return res.status(200).json({
+        success: true,
+        message: "Device access revoked successfully.",
+      });
+    } else {
+      // isActive false => revoke access
+      const [revokedDevices] = await Reseller.findRevokedDeviceId(deviceId);
+
+      const isRevoked = revokedDevices.some(
+        (d) => d.device_id === deviceId
+      );
+
+      if (!isRevoked) {
+        return res.status(400).json({
+          success: false,
+          message: "Device ID is not in the revoked list.",
+        });
+      }
+
+      await Reseller.grantDeviceIdToResellerUser(deviceId);
+      return res.status(200).json({
+        success: true,
+        message: "Device access granted successfully.",
+      });
+    }
+  } catch (error) {
+    console.error("Device access update failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update device access.",
+      error: error.message,
+    });
+  }
+};
+
+
   module.exports = {
     addResellerUserController,
     fetchAllResellerDevices,
@@ -409,5 +530,8 @@ const addResellerUserController = async (req, res) => {
     updateResellerUserFirmInfoController,
     removeResellerUserController,
     removeDeviceFromResellerUser,
-    fetchAllVendorIdsController
+    changeAccessStatusController,
+    fetchAllVendorIdsController,
+    deviceIdAccessController,
+    fetchAllRevokedDeviceIdsController
   }

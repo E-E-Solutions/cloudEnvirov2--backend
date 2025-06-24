@@ -206,7 +206,7 @@ return db.execute(
           static fetchParameters(){
             return db.execute (`SELECT * FROM parameters_info`)
           }
-          static addUserByAdmin(email, password, roleId, deviceIds) {
+          static addUserByAdmin(email, password, roleId, deviceIds = null) {
             if (!email || !password || !roleId) {
               return Promise.reject(
                 new Error("Missing required fields: email, password, or roleId")
@@ -241,7 +241,7 @@ return db.execute(
               return db.execute(query);
             }
 
-           static addReseller(name, email, deviceIds,vendorId) {
+           static addReseller(name, email, deviceIds = null,vendorId) {
             if (deviceIds && Array.isArray(deviceIds) && deviceIds.length > 0) {
               const deviceIdsJson = JSON.stringify(deviceIds);
               return db.execute(

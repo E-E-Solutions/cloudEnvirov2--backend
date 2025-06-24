@@ -104,7 +104,6 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
       });
       }
       const [existedVendorId] = await Reseller.vendorIdExists(email,resolvedVendorId)
-       console.log("existed",existedVendorId)
       const roleRow = await Users.findRoleByEmail(email);
 
       let roleId;
@@ -134,6 +133,8 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
      }
      
       if(!currentUser){
+        const [resellerUserExist] = await Reseller.findResellersUserByEmailId(email);
+        if(resellerUserExist[0]){
       const [existedVendorId] = await Reseller.vendorUserIdExists(email,resolvedVendorId)
 
        if((existedVendorId && existedVendorId[0].vendor_id === resolvedVendorId)  || existedVendorId[0].vendor_id ===null){
@@ -172,20 +173,30 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
               message: "User not found.",
             });
           }
-          let deviceIds = [];
-          try {
-            deviceIds = JSON.parse(rows[0].products_list || "[]");
-            for(let i = 1;i<deviceIds.length;i++){
-              const deviceId = deviceIds[i]
-            const validateDevice = Admin.checkDevice(deviceId)
-              if (!validateDevice[0] && existedVendorId[0].vendor_id ===null) {
-            return res.status(400).json({
-              success: false,
-              message: `You own an invalid Device Id in your Account. Please Contact Support!`,
-                });
-              }
-            }
-            const updatedId = await Reseller.addVendorId(resolvedVendorId,email)
+         let deviceIds = [];
+
+try {
+  deviceIds = JSON.parse(rows[0].products_list || "[]");
+
+  for (let i = 0; i < deviceIds.length; i++) {
+    const deviceId = deviceIds[i];
+
+    // Await async call to checkDevice
+    const validateDevice = await Admin.checkDevice(deviceId);
+
+    // If device is invalid AND vendor_id is null
+    if (!validateDevice[0].length>0 && existedVendorId[0].vendor_id === null) {
+      return res.status(400).json({
+        success: false,
+        message: `You own an invalid Device ID in your account. Please contact support.`,
+      });
+    }
+  }
+
+  // If all device IDs are valid, proceed to update
+  const updatedId = await Reseller.addVendorId(resolvedVendorId, email);
+  
+
           } catch (err) {
             return res.status(500).json({
               success: false,
@@ -223,6 +234,7 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
         }
       }
       }
+    }
     
       else{
          return res.status(401).json({

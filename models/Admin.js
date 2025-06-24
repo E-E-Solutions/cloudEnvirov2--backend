@@ -227,7 +227,7 @@ return db.execute(
             }
           }
           
-           static async checkDevice ( deviceId){
+           static async checkDevice (deviceId){
               return db.execute("SELECT * FROM id_create_info WHERE device_id = ? ", [deviceId])
           }
           static countUsers(){

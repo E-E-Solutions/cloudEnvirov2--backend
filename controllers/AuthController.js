@@ -6,6 +6,7 @@ var postmark = require("postmark");
 const htmlTemplate = require("../template/html/otp-mail");
 const { validateRequestBody, validateEmail } = require("../utils/common");
 const https = require("https"); // Use https for secure requests
+var client = new postmark.ServerClient("d7c1a2c7-ed9c-41ef-8dfa-0462caebdb92");
 
 // local imports
 const Users = require("../models/User");
@@ -110,7 +111,6 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
       if(roleRow){       
       roleId = roleRow.role_id;
       }
-
 
       const [userDetails] = await Users.findByRole(email,roleId)
      
@@ -489,90 +489,155 @@ const registerWithGoogleController = async (req, res) => {
 
 const registerController = async (req, res) => {
   try {
-    const { firmName, password, email, productsList, contactNo, address, otp } =
-      req.body;
-    console.log({ reqBody: req.body });
-    if (
-      !email ||
-      !password ||
-      !firmName ||
-      !productsList ||
-      !contactNo ||
-      !address ||
-      !otp
-    ) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: "Please provide all the details" });
+    const {
+      firmName,
+      password,
+      email,
+      productsList,
+      contactNo,
+      address,
+      otp,
+      vendorId,
+    } = req.body;
+
+    if (!email || !password || !firmName || !productsList || !contactNo || !address || !otp) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Please provide all the details",
+      });
     }
 
     if (!validateEmail(email)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email is not valid" });
-    }
-    const role = req.body.role || "user";
-    const roleId = await Admin.findRoleId(role)
-
-    const user = await Users.findOne(email);
-    console.log({ user });
-
-    // Check if user exist
-    if (user[0][0]) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User already exist!" });
-    }
-    const isVerified = true;
-    const { success, message } = await Users.verifyOtp(email, otp);
-   
-    console.log({ success, message });
-    if (success) {
-      const user = new Users(
-        firmName,
-        password,
-        email,
-        productsList,
-        contactNo,
-        address,
-        roleId
-      ,isVerified);
-      user.save();
-      const role = "user";
-      const token = jwt.sign(
-        { email, password,role }, // Customize payload as needed
-        process.env.ACCESS_TOKEN_SECRET,
-        { expiresIn: "1h" }
-      );
-
-      // if (response[0]?.affectedRows > 0) {
-      // res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully",  });
-
-      res.status(StatusCodes.CREATED).json({
-        success: true,
-        message: "User Register Successfully",
-        token: token,
-        productsList,
-        address,
-        email,
-        firmName,
-        contactNo,
+      return res.status(400).json({
+        success: false,
+        message: "Email is not valid",
       });
-      // } else {
-      //   res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Something went wrong!" });
-      // }
-    } else {
-      res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: message });
     }
 
-    // Hash the password
-    // const salt = await bcrypt.genSalt(10);
-    // const hashedPassword = await bcrypt.hash(password, salt);
+    const role = req.body.role || "user";
+    const roleId = await Admin.findRoleId(role);
+
+    let success, message;
+    let resolvedVendorId;
+    if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.iv) {
+      try {
+        resolvedVendorId = await decryptVendorId(vendorId,  process.env.VENDOR_SECRET_KEY);
+        console.log("Decrypted Vendor ID:", resolvedVendorId);
+      } catch (err) {
+        console.error("Decryption error:", err);
+        return res.status(400).json({
+          success: false,
+          message: "Failed to decrypt vendor ID",
+        });
+      }
+    }
+
+    if (resolvedVendorId) {
+      const resellerUser = await Reseller.findResellerUser(resolvedVendorId, email);
+      if (resellerUser[0][0]) {
+        return res.status(400).json({
+          success: false,
+          message: "User already exists!",
+        });
+      }
+     for (const deviceId of productsList) {
+        if (!deviceId) {
+          return res.status(400).json({
+            success: false,
+            message: "Each device must have a valid deviceId.",
+          });
+        }
+        const result = await Reseller.checkDevice(resolvedVendorId,deviceId);
+  
+        if (!result[0][0]) {
+          return res.status(400).json({
+            success: false,
+            message: `Device ID ${deviceId} is not linked to your vendor profile. Please verify the ID or contact support.`,
+          });
+        }
+      }
+      const hasDuplicates = new Set(productsList).size !== productsList.length;
+      if (hasDuplicates) {
+        return res.status(400).json({
+          success: false,
+          message: "Duplicate device IDs are not allowed.",
+        });
+      }
+
+      ({ success, message } = await Users.verifyOtp(email, otp));
+
+      if (!success) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message });
+      }
+
+      const newUser = await Users.createResellerUser(email, password, firmName,contactNo, address,resolvedVendorId, productsList);
+      console.log({ newUser });
+ const token = jwt.sign(
+      { email, password, role:"resellerUser" },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "1h" }
+    );
+      return res.status(StatusCodes.CREATED).json({
+        success: true,
+        message: "Reseller user registered successfully",
+        token,
+      productsList,
+      address,
+      email,
+      firmName,
+      contactNo,
+      });
+    }
+
+    // Regular user registration
+    const user = await Users.findOne(email);
+    if (user[0][0]) {
+      return res.status(400).json({
+        success: false,
+        message: "User already exists!",
+      });
+    }
+
+    ({ success, message } = await Users.verifyOtp(email, otp));
+
+    if (!success) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message });
+    }
+
+    const newUser = new Users(
+      firmName,
+      password,
+      email,
+      productsList,
+      contactNo,
+      address,
+      roleId,
+      true // isVerified
+    );
+    newUser.save();
+
+    const token = jwt.sign(
+      { email, password, role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      message: "User registered successfully",
+      token,
+      productsList,
+      address,
+      email,
+      firmName,
+      contactNo,
+    });
   } catch (error) {
-    console.log({ error });
-    throw new CustomError.BadRequestError(error);
+    console.error("Registration error:", error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong during registration.",
+    });
   }
 };
 
@@ -648,7 +713,6 @@ const forgetPasswordController = async (req, res) => {
     throw new CustomError.BadRequestError("Failed to reset password");
   }
 }
-
 
 const changePasswordController = async (req, res) => {
   try {

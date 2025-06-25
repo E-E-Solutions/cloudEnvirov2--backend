@@ -341,19 +341,13 @@ const googleLoginController = async (req, res) => {
       });
     }
 
-    const isPasswordCorrect = currentUser.password === password;
-    if (!isPasswordCorrect) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid Credentials",
-      });
-    }
+   
 
     // Generate JWT
     const token = jwt.sign(
       {
         email: currentUser.email,
-        password: currentUser.password,role:user[0][0].role, 
+        password: currentUser.password,role:currentUser.role, 
         role: isReseller ? "resellerUser" : currentUser.role,
       },
       process.env.ACCESS_TOKEN_SECRET,
@@ -368,8 +362,8 @@ const googleLoginController = async (req, res) => {
     });
 
     let deviceIds = [];
-    if (user[0][0].products_list) {
-      deviceIds = JSON.parse(user[0][0].products_list);
+    if (currentUser.products_list) {
+      deviceIds = JSON.parse(currentUser.products_list);
     }
 
     console.log({ deviceIds });
@@ -387,18 +381,18 @@ const googleLoginController = async (req, res) => {
     }, []);
 
     let address = "";
-    if (user[0][0].address) {
-      address = user[0][0].address;
+    if (currentUser.address) {
+      address = currentUser.address;
     }
 
     let firmName = "";
-    if (user[0][0].firm_name) {
-      firmName = user[0][0].firm_name;
+    if (currentUser.firm_name) {
+      firmName = currentUser.firm_name;
     }
 
     let contactNo = "";
-    if (user[0][0].contact) {
-      contactNo = user[0][0].contact;
+    if (currentUser.contact) {
+      contactNo = currentUser.contact;
     }
 
     res.status(StatusCodes.OK).json({

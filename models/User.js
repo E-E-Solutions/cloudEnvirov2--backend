@@ -272,7 +272,7 @@ static async updateLastLoginForResellerUser(email) {
                       if (deviceIds && Array.isArray(deviceIds) && deviceIds.length > 0) {
                         const deviceIdsJson = JSON.stringify(deviceIds);
                         return db.execute(
-                          `INSERT INTO reseller_user_info (email, password, firm_name, contact,address,vendor_id,products_list,created_at,access_status) VALUES (?, ?, ?, ?, ?, ?,?,NOW(),true)`,
+                          `INSERT INTO reseller_user_info (email, password, firm_name, contact,address,vendor_id,products_list,created_at,last_login,access_status) VALUES (?, ?, ?, ?, ?, ?,?,NOW(),Now(),true)`,
                           [ email, password,firmName,contact,address,vendorId,deviceIdsJson]
                         );
                       }

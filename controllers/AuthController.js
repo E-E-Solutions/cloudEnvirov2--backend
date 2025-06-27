@@ -48,6 +48,7 @@ const loginController = async (req, res) => {
 
   try {
  const { email, password, vendorId } = req.body;
+ console.log({ email, password, vendorId });
 
 let resolvedVendorId;
 if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.iv) {
@@ -62,7 +63,6 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
     });
   }
 }
-
 
 
     // if (!validateRequestBody(req.body, ["email", "password"])) {
@@ -134,6 +134,33 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
      
       if(!currentUser){
         const [resellerUserExist] = await Reseller.findResellersUserByEmailId(email);
+        if(!resellerUserExist[0]){
+           const [userResult] = await Users.findByEmail(email);
+           if(userResult[0]){
+            currentUser = userResult[0]
+            console.log({currentUser})
+             const isPasswordCorrect = currentUser.password === password;
+            if (!isPasswordCorrect) {
+              return res.status(401).json({
+                success: false,
+                message: "Invalid Credentials",
+              });
+            }
+            console.log({email, password,firmname:currentUser.firm_name,contact:currentUser.contact, address:currentUser.address,resolvedVendorId, productsList:currentUser.products_list})
+            const firmName = currentUser.firm_name || "";
+            const contactNo = currentUser.contact || "";
+            const address = currentUser.address || "";
+            const productsList = currentUser.products_list ? JSON.parse(currentUser.products_list) : [];
+            const newReseller = await Users.createResellerUser(email, password, firmName,contactNo,address,resolvedVendorId, productsList);
+            console.log(newReseller,"newReseller")
+            if(!newReseller){
+              return res.status(400).json({
+                success:false,
+                message:"Failed to login reseller user",
+              })
+            }
+           }
+        }
         if(resellerUserExist[0]){
       const [existedVendorId] = await Reseller.vendorUserIdExists(email,resolvedVendorId)
 
@@ -235,15 +262,16 @@ try {
       }
       }
     }
-    
-      else{
+      if(!currentUser && !isReseller){
          return res.status(401).json({
         success: false,
         message: "You are not Authorised to get Access!",
       });
       }
-      }
     }
+      
+      }
+    
 
     if (!currentUser) {
       return res.status(400).json({
@@ -525,6 +553,13 @@ const registerController = async (req, res) => {
         });
       }
     }
+    console.log({ resolvedVendorId });
+    if(!resolvedVendorId && !vendorId){
+      return res.status(400).json({
+        success: false,
+        message: "Cannot resolve vendor id!",
+      });
+    }
 
     if (resolvedVendorId) {
       const resellerUser = await Reseller.findResellerUser(resolvedVendorId, email);
@@ -630,7 +665,7 @@ const registerController = async (req, res) => {
     console.error("Registration error:", error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
-      message: "Something went wrong during registration.",
+      message: error || "Something went wrong during registration.",
     });
   }
 };

@@ -260,18 +260,35 @@ class FLM {
             resolve({ data: dailyResult[0] });
           } else if (average === "monthly") {
             // Query to get the initial and final totalizer values per month
+            
             const query = `
+            WITH monthly_boundaries AS (
               SELECT 
                 DATE_FORMAT(ts_server, '%Y-%m') AS timeStamp,
-                MIN(${totalizerColumn}) AS initial_totalizer,
-                MAX(${totalizerColumn}) AS final_totalizer,
-                ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS monthly_flow
+                MIN(ts_server) AS first_ts,
+                MAX(ts_server) AS last_ts
               FROM ??
               WHERE ts_server BETWEEN ? AND ?
               GROUP BY timeStamp
-              ORDER BY timeStamp;
-            `;
-            const monthlyResult = await db.query(query, [deviceId, from, to]);
+            )
+            SELECT 
+              mb.timeStamp,
+              f_init.${totalizerColumn} AS initial_totalizer,
+              f_final.${totalizerColumn} AS final_totalizer,
+              ROUND(f_final.${totalizerColumn} - f_init.${totalizerColumn}, 2) AS monthly_flow
+            FROM monthly_boundaries mb
+            JOIN ?? f_init ON DATE_FORMAT(f_init.ts_server, '%Y-%m') = mb.timeStamp AND f_init.ts_server = mb.first_ts
+            JOIN ?? f_final ON DATE_FORMAT(f_final.ts_server, '%Y-%m') = mb.timeStamp AND f_final.ts_server = mb.last_ts
+            ORDER BY mb.timeStamp;
+          `;
+          
+          const monthlyResult = await db.query(query, [
+            deviceId,  // for CTE
+            from,
+            to,
+            deviceId,  // for initial
+            deviceId   // for final
+          ]);
 
             resolve({ data: monthlyResult[0] });
           } else {

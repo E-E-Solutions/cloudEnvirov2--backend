@@ -25,7 +25,7 @@ module.exports = class Reseller {
     }
 
     static async fetchResellerUsers(vendorId){
-        return db.execute("SELECT * FROM reseller_user_info WHERE vendor_id = ?", [vendorId]);
+      return db.execute("SELECT * FROM reseller_user_info WHERE vendor_id = ?", [vendorId]);
     }
    // Fetch a single reseller user (by email)
 static async fetchResellerUserDevices(email) {

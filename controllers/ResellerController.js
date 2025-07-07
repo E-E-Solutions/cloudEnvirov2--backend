@@ -1,5 +1,6 @@
 const Reseller = require("../models/Reseller");
 const Admin = require("../models/Admin");
+const Users = require("../models/User");
 
 const { StatusCodes } = require("http-status-codes");
 const addResellerUserController = async (req, res) => {
@@ -70,6 +71,7 @@ const addResellerUserController = async (req, res) => {
        const vendorId = vendorIds[0].vendor_id
       // Insert into DB
       await Reseller.addResellerUser(userEmail, password, name,vendorId, deviceIds);
+      await Users.logUserActivity("reseller" ,userEmail, "Add Reseller User", `Reseller added a new user`, "success",email, {userEmail, password,name, deviceIds });
   
       return res.status(200).json({
         success: true,
@@ -78,6 +80,7 @@ const addResellerUserController = async (req, res) => {
   
     } catch (error) {
       console.error("Error adding reseller user:", error);
+       await Users.logUserActivity("reseller" ,userEmail, "Add Reseller User", `error: ${error.message}`, "failure",email, {userEmail, password,name, deviceIds });
       return res.status(500).json({
         success: false,
         message: "An error occurred while adding the user.",
@@ -145,9 +148,9 @@ const addResellerUserController = async (req, res) => {
   }
   const updateResellerUserDeviceInfoController = async (req, res) => {
     try {
-      const {email}  = req.user; 
-      const { userEmail } = req.query;
-      let { deviceIds } = req.body; 
+      var {email}  = req.user; 
+      var { userEmail } = req.query;
+      var { deviceIds } = req.body; 
       
       if (!userEmail) {
         return res.status(400).send({
@@ -219,6 +222,7 @@ const addResellerUserController = async (req, res) => {
           message: "No matching user found or device info not updated.",
         });
       }
+      await Users.logUserActivity("reseller" ,userEmail, "Update Reseller User Devices", `Reseller updated user's devices: ${deviceIds}`, "success", email, {userEmail, deviceIds });
   
       res.status(200).json({
         success: true,
@@ -228,6 +232,7 @@ const addResellerUserController = async (req, res) => {
   
     } catch (error) {
       console.error("Error updating devices:", error);
+     await Users.logUserActivity("reseller" ,userEmail, "Update Reseller User Devices", `error: ${error.message}`, "failure", email, {userEmail, deviceIds });
       res.status(500).send({
         success: false,
         message: "An error occurred while updating devices.",
@@ -237,8 +242,8 @@ const addResellerUserController = async (req, res) => {
   };
   const updateResellerUserFirmInfoController = async (req, res) => {
     try {
-        const {email} = req.query
-      const { password,firmName, firmAddress, contactNo } = req.body;
+        var {email} = req.query
+      var { password,firmName, firmAddress, contactNo } = req.body;
    
       console.log({ email, password, firmName, firmAddress, contactNo });
   
@@ -276,6 +281,7 @@ const addResellerUserController = async (req, res) => {
       console.log({ user: updatedUser[0][0] });
   
       const { firm_name, address, contact } = updatedUser[0][0];
+      await Users.logUserActivity("reseller" ,email, "Update Reseller User Firm Info", `Reseller updated user's firm info`, "success" , "", { password,firmName, firmAddress, contactNo });
   
       res
         .status(200)
@@ -286,11 +292,18 @@ const addResellerUserController = async (req, res) => {
         });
     } catch (error) {
       console.log(error);
+      await Users.logUserActivity("reseller" ,email, "Update Reseller User Firm Info", `error: ${error.message}`, "failure","", { password,firmName, firmAddress, contactNo });
+      res.status(500).send({
+        success: false,
+        message: "An error occurred while updating user info.",
+        error: error.message || error,
+      });
     }
   };
   const removeResellerUserController = async (req, res) => {
       try {
-        const { email } = req.query;
+        var {email:resellerEmail} = req.user;
+        var { email } = req.query;
     
         if (!email) {
           return res.status(400).send({
@@ -313,7 +326,7 @@ const addResellerUserController = async (req, res) => {
             message: "No Records Found",
           });
         }
-    
+    await Users.logUserActivity("reseller" ,email, "Remove Reseller User", `Reseller removed a user`,"success",resellerEmail,{email});
         res.status(200).send({
           success: true,
           message: "Deleted User Successfully",
@@ -321,6 +334,7 @@ const addResellerUserController = async (req, res) => {
         
       } catch (error) {
         console.error("Error deleting user:", error);
+        await Users.logUserActivity("reseller" ,email, "Remove Reseller User", `error: ${error.message}`, "failure",resellerEmail,{email});
         res.status(500).send({
           success: false,
           message: "An Error occures while deleting user ",
@@ -329,6 +343,7 @@ const addResellerUserController = async (req, res) => {
       }
     };
     const removeDeviceFromResellerUser = async (req, res) => {
+      const {email:resellerEmail} = req.user;
         const { email } = req.query;
         const { deviceId } = req.body;
       
@@ -367,6 +382,7 @@ const addResellerUserController = async (req, res) => {
       
           // Update DB
           await Reseller.removeDeviceId(updatedProducts, email);
+          await Users.logUserActivity("reseller" ,email, "Remove Reseller User Device", `Reseller removed user's device: ${deviceId}`, "success",resellerEmail, {email, deviceId});
       
           return res.status(200).json({
             success: true,
@@ -375,6 +391,7 @@ const addResellerUserController = async (req, res) => {
       
         } catch (error) {
           console.error("Error removing device:", error);
+          await Users.logUserActivity("reseller" ,email, "Remove Reseller User Device", `error: ${error.message}`, "failure",resellerEmail,{email, deviceId});
           return res.status(500).json({
             success: false,
             message: "Failed to remove device.",
@@ -403,10 +420,11 @@ const addResellerUserController = async (req, res) => {
       }
 
     const changeAccessStatusController = async (req, res) => {
-  const { email, accessStatus } = req.body;
+      const {email} = req.user;
+  const { email:userEmail, accessStatus } = req.body;
 
   try {
-    const [result] = await Reseller.changeAccessStatus(accessStatus,email);
+    const [result] = await Reseller.changeAccessStatus(accessStatus,userEmail);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({
@@ -414,6 +432,9 @@ const addResellerUserController = async (req, res) => {
         message: "No user found with the provided email.",
       });
     }
+    const status = accessStatus ? "granted" : "revoked";
+    const keyword = status === "granted" ? "to" : "of";
+    await Users.logUserActivity("reseller" ,userEmail, "Change User Access Status", `Reseller ${status} access ${keyword} user`, "success",email, {userEmail, accessStatus });
 
     return res.status(200).json({
       success: true,
@@ -421,6 +442,7 @@ const addResellerUserController = async (req, res) => {
     });
   } catch (error) {
     console.error("Failed to change access status:", error);
+    await Users.logUserActivity("reseller" ,userEmail, "Change User Access Status", `error: ${error.message}`, "failure", email, {userEmail, accessStatus });
     return res.status(500).json({
       success: false,
       message: "Failed to change access status.",
@@ -486,6 +508,7 @@ const deviceIdAccessController = async (req, res) => {
       });
       }
       await Reseller.revokeDeviceIdForResellerUserUpdate( deviceId);
+       await Users.logUserActivity("reseller" ,email, "Change DeviceId Access Status", `Reseller revoked access of a device: ${deviceId} `,"success","", {deviceId, isActive });
       return res.status(200).json({
         success: true,
         message: "Device access revoked successfully.",
@@ -506,6 +529,7 @@ const deviceIdAccessController = async (req, res) => {
       }
 
       await Reseller.grantDeviceIdToResellerUser(deviceId);
+      await Users.logUserActivity("reseller" , email,"Change DeviceId Access Status", `Reseller granted access to a device: ${deviceId} `, "success", "", {deviceId, isActive });
       return res.status(200).json({
         success: true,
         message: "Device access granted successfully.",
@@ -513,6 +537,7 @@ const deviceIdAccessController = async (req, res) => {
     }
   } catch (error) {
     console.error("Device access update failed:", error);
+    await Users.logUserActivity("reseller" ,email, "Changed DeviceId Access Status", `error: ${error.message}`, "failure", "", {deviceId, isActive });
     return res.status(500).json({
       success: false,
       message: "Failed to update device access.",

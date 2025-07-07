@@ -10,8 +10,8 @@ const Reseller = require("../models/Reseller");
 
 const AddDeviceController = async (req, res) => {
   try {
-    const { email,role } = req.user;
-    let { deviceId, serialNo } = req.body;
+    var { email,role } = req.user;
+    var { deviceId, serialNo } = req.body;
     const [userResult] = await Users.findByEmail(email);
         const user = userResult[0];
     
@@ -93,15 +93,18 @@ const AddDeviceController = async (req, res) => {
     console.log({ addProductResult });
     console.log(addProductResult[0].affectedRows);
     if (addProductResult[0].affectedRows > 0) {
+      const logActivity = await Users.logUserActivity(role ,email, "Add Device", `User added a new device ${deviceId}`, "success", "",{ deviceId, serialNo });
       return res.status(200).json({
         success: true,
         message: "Device added successfully",
         productsList: products,
       });
     }
+    
 
     // res.status(200).json({ message: "Device already exists" });
   } catch (er) {
+    await Users.logUserActivity(role ,email, "Add Device", `error: ${er.message}`, "failure", "",{ deviceId, serialNo });
     console.log(er);
     res.status(500).json({ success: false, message: er });
   }
@@ -128,9 +131,9 @@ const ValidateDeviceController = async (req, res) => {
 
 const UpdateAliasController = async (req, res) => {
   try {
-    const { deviceId } = req.query;
-    const { alias } = req.body;
-    const { email,role } = req.user;
+    var { deviceId } = req.query;
+    var { alias } = req.body;
+    var { email,role } = req.user;
     console.log(req.body);
 
     console.log({ email, alias, deviceId });
@@ -167,12 +170,14 @@ const UpdateAliasController = async (req, res) => {
         .status(501)
         .json({ success: false, message: "Alias not Updated!" });
     }
+   await Users.logUserActivity(role ,email, "Update alias", `User updated device: ${deviceId} alias`, "success", "",{ deviceId, alias });
 
     res
       .status(200)
       .json({ success: true, message: "Alias Updated Successfully!" });
   } catch (er) {
     console.log(er);
+    await Users.logUserActivity(role ,email, "Update alias", `error: ${er.message}`, "failure", "",{ deviceId, alias });
     res
       .status(500)
       .json({ success: false, message: "Internal Server Error | " + er });
@@ -182,8 +187,8 @@ const UpdateAliasController = async (req, res) => {
 const UpdateLocationController = async (req, res) => {
   try {
     // const {deviceId} = req.query;
-    const { address, latitude, longitude, deviceIds } = req.body;
-    const { email,role } = req.user;
+    var { address, latitude, longitude, deviceIds } = req.body;
+    var { email,role } = req.user;
     console.log(req.body);
 
     console.log({ email, address, latitude, longitude, deviceIds });
@@ -236,6 +241,7 @@ if(role !=="admin"){
     );
 
     if (allPromises.every((value) => value)) {
+      await Users.logUserActivity(role ,email, "Update location", `User updated device: ${deviceIds} location`, "success", "",{ deviceIds, address, latitude, longitude });
       res
         .status(200)
         .json({ success: true, message: "Location Updated Successfully!" });
@@ -248,6 +254,7 @@ if(role !=="admin"){
     }
   } catch (er) {
     console.log(er);
+    await Users.logUserActivity(role ,email, "Update location", `error: ${er.message}`, "failure", "",{ deviceIds, address, latitude, longitude }); 
     res
       .status(500)
       .json({ success: false, message: "Internal Server Error | " + er });
@@ -425,8 +432,8 @@ const GetUserDevicesStatusController = async (req, res) => {
 
 const DeleteDeviceController = async (req, res) => {
   try {
-    const { deviceIds } = req.body;
-    const { email, role } = req.user;
+    var { deviceIds } = req.body;
+    var { email, role } = req.user;
 
     if (!deviceIds || !Array.isArray(deviceIds)) {
       return res
@@ -478,7 +485,7 @@ const DeleteDeviceController = async (req, res) => {
 
     if (role === "reseller") {
       const vendorId = await Reseller.findVendorId(email)
-      const [resellerUsersResult] = await Reseller.fetchResellerUsers(vendorId);
+      const [resellerUsersResult] = await Reseller.fetchResellerUsers(vendorId[0][0].vendor_id);
       const userEmails = resellerUsersResult.map((u) => u.email);
 
       // Update all associated reseller users
@@ -499,12 +506,13 @@ const DeleteDeviceController = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Failed to delete device" });
     }
-
+    await Users.logUserActivity(role ,email, "Delete device", `User deleted device: ${deviceIds}`, "success", "",{ deviceIds });
     return res
       .status(200)
       .json({ success: true, message: "Device(s) deleted successfully!" });
   } catch (er) {
     console.error("DeleteDeviceController Error:", er);
+    await Users.logUserActivity(role ,email, "Delete device", `error: ${er.message}`, "failure", "",{ deviceIds });
     return res
       .status(500)
       .json({ success: false, message: "Internal Server Error | " + er });

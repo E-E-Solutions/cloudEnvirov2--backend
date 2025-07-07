@@ -614,9 +614,9 @@ const registerController = async (req, res) => {
             message: "Each device must have a valid deviceId.",
           });
         }
-        const deviceInfo = await Device.GetDeviceAlias(deviceId);
-        const alias = deviceInfo[0][0].alias
-        productsList =[{deviceId:deviceId, alias:alias }]
+        // const deviceInfo = await Device.GetDeviceAlias(deviceId);
+        // const alias = deviceInfo[0][0].alias
+        // productsList =[{deviceId:deviceId, alias:alias }]
         const result = await Reseller.checkDevice(resolvedVendorId,deviceId);
   
         if (!result[0][0]) {

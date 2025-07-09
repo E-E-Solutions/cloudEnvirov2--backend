@@ -98,6 +98,9 @@ class Device {
       }
     });
   }
+    static GetDeviceAlias(deviceId){
+return db.execute("SELECT alias FROM id_create_info WHERE device_id = ?", [deviceId])
+  }
 
   static GetDeviceCoordinates(deviceId){
     return new Promise((resolve, reject) => {

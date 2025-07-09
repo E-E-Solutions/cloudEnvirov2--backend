@@ -27,6 +27,9 @@ static findUserbyId(userId) {
   static findUserbydevice(deviceId) {
     return  db.execute("SELECT * FROM user_ WHERE products_List LIKE ?", [`%${deviceId}%`]);
   }
+    static findUserbyRole(role) {
+    return  db.execute("SELECT * FROM user_ WHERE role_id LIKE ?", [`%${role}%`]);
+  }
   
   static removeUser(emailId){
     console.log({emailId})
@@ -229,6 +232,9 @@ return db.execute(
           
            static async checkDevice (deviceId){
               return db.execute("SELECT * FROM id_create_info WHERE device_id = ? ", [deviceId])
+          }
+            static async checkDatabase (deviceId){
+              return db.execute(`SELECT * FROM ${deviceId}` )
           }
           static countUsers(){
             return db.execute("SELECT COUNT(*) as count FROM user_")

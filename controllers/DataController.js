@@ -1,6 +1,8 @@
 const Data = require("../models/Data");
 const Users = require("../models/User");
 const Device = require("../models/Device");
+const Admin = require("../models/Admin");
+
 
 const {
   getStatus,
@@ -12,9 +14,35 @@ const Reseller = require("../models/Reseller");
 
 const GetLatestData = async (req, res) => {
   try {
-    const { email, role } = req.user;
-    const { deviceId: rawDeviceId } = req.query;
+    let { email, role } = req.user;
+     if(role === "reseller"){
+       email = req.query.email;
+       if (email ) {
+       role = "resellerUser";
+    }
+     else{
+      email= req.user.email;    
+    }
+  }
+    else if(role === "admin"){
+    email = req.query.email;
+     email = req.query.email;
+       if (email ) {
+       role = "resellerUser";
+    }
+     else{
+      email= req.user.email;    
+    }
+  }
+  
+    const rawDeviceId = req.query.deviceId;
     const deviceId = rawDeviceId.toUpperCase(); // Ensure deviceId is uppercase
+  //  const checkDeviceId = await Admin.checkDatabase(deviceId);
+  //   if (!checkDeviceId) {
+  //     return res
+  //       .status(500)
+  //       .json({ success: false, message: "No Database available for deviceId: " + deviceId });
+  //   }
 
     if (role === "resellerUser") {
       const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);

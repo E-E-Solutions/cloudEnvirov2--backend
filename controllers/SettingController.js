@@ -66,8 +66,19 @@ const SetMapSettings = async (req, res) => {
 
 const SetParaInfo = async (req, res) => {
   try {
-    const { email } = req.user;
-    const { paraInfo } = req.body;
+    let { email,role } = req.user;
+    if(role === "reseller" || role === "admin"){
+       email = req.body.email;
+       if (!email ) {
+        return res
+          .status(400)
+          .json({
+            success: "false",
+            message: "Email is required for reseller and admin to update Para Info",
+          });
+    }
+  }
+    const  paraInfo  = req.body.paraInfo;
     const oldSettings = new Settings(email);
     const [oldSettingsData] = await oldSettings.getSettings();
 

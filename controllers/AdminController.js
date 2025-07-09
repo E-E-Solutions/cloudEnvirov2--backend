@@ -6,9 +6,9 @@ const { StatusCodes } = require("http-status-codes");
 // to search users
 const searchUserController = async (req, res) => {
   try {
-    const { email, contact, address, deviceId, firmName } = req.query;
+    const { email, contact, address, deviceId, firmName, role } = req.query;
 
-    if (!email && !contact && !address && !deviceId && !firmName) {
+    if (!email && !contact && !address && !deviceId && !firmName && !role) {
       return res.status(400).send({
         success: false,
         message: "At least one search parameter is required.",
@@ -28,6 +28,10 @@ const searchUserController = async (req, res) => {
     } else if (deviceId) {
       [userRows] = await Admin.findUserbydevice(deviceId);
     }
+    else if (role) {
+     const roleId = await Admin.findRoleId(role);
+      [userRows] = await Admin.findUserbyRole(roleId);
+    }
 
     if (!userRows || userRows.length === 0) {
       return res.status(404).json({
@@ -39,7 +43,7 @@ const searchUserController = async (req, res) => {
     // Fetch and attach role for each user
     const formattedUsers = await Promise.all(
       userRows.map(async (user) => {
-        const role = await Admin.findRole(user.role_id);
+        const userRole = await Admin.findRole(user.role_id);
         return {
           email: user.email,
           password: user.password,
@@ -48,7 +52,7 @@ const searchUserController = async (req, res) => {
           firmName: user.firm_name,
           productsList: user.products_list,
           isVerified: !!user.isVerified, 
-          role: role || "N/A",
+          role: userRole || "N/A",
         };
       })
     );

@@ -238,7 +238,21 @@ class FMU {
             // Fetch the averages for the day of the latest data point
             const data = await db.query(query, [deviceId, from, toPlusOne]);
             // console.log({ avgValue: data[0] });
-            resolve({ data: data[0] });
+             const formatDate = (d) => {
+              const date = new Date(d);
+              const pad = (n) => n.toString().padStart(2, "0");
+              return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+                date.getDate()
+              )} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+                date.getSeconds()
+              )}`;
+            };
+
+            const formattedData = data[0].map((row) => ({
+              ...row,
+              ts: formatDate(row.ts),
+            }));
+            resolve({ data: formattedData });
           }
 
           // console.log({ latestData });

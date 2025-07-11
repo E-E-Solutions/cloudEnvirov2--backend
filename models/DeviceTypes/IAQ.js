@@ -17,6 +17,7 @@ class IAQ {
 
         if (latestRow[0].length > 0) {
           const latestData = latestRow[0];
+          
 
           // console.log({ latestData });
 
@@ -231,7 +232,9 @@ class IAQ {
 
         if (latestRow.length > 0) {
           const latestData = latestRow[0];
-
+          const toDate = new Date(to);
+        toDate.setDate(toDate.getDate() + 1);
+        const toPlusOne = toDate.toISOString().slice(0, 19).replace('T', ' '); // format 'YYYY-MM-DD HH:mm:ss'
           if (average === "no_average") {
             const query = `SELECT * FROM ?? WHERE date_time BETWEEN ? AND ? ORDER BY date_time;`;
             // Fetch the averages for the day of the latest data point
@@ -265,7 +268,7 @@ class IAQ {
             if (average.includes("hourly")) {
               const avgQuery = `SELECT DATE_FORMAT(date_time, '%Y-%m-%d, %H:00') AS timeStamp, ${avgColumns} FROM ?? WHERE date_time BETWEEN ? AND ? GROUP BY timeStamp ORDER BY timeStamp;`;
               // Fetch the averages for the day of the latest data point
-              const avgResult = await db.query(avgQuery, [deviceId, from, to]);
+              const avgResult = await db.query(avgQuery, [deviceId, from, toPlusOne]);
               // console.log({ avgValue: avgResult[0] });
               resolve({ data: avgResult[0] });
             } else if (average.includes("daily")) {
@@ -273,7 +276,7 @@ class IAQ {
               // Fetch the averages for the day of the latest data point
 
               console.log(avgQuery);
-              const avgResult = await db.query(avgQuery, [deviceId, from, to]);
+              const avgResult = await db.query(avgQuery, [deviceId, from, toPlusOne]);
               // console.log({ avgValue: avgResult[0] });
               resolve({ data: avgResult[0] });
             }

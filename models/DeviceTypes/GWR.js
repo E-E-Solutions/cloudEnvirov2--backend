@@ -219,6 +219,9 @@ class GWR {
 
             if (latestRow.length > 0) {
                 const latestData = latestRow[0];
+                  const toDate = new Date(to);
+                  toDate.setDate(toDate.getDate() + 1);
+                  const toPlusOne = toDate.toISOString().slice(0, 19).replace('T', ' '); // format 'YYYY-MM-DD HH:mm:ss'
 
                 if (average === "no_average") {
                     const query = `SELECT * FROM ?? WHERE CONCAT(date, ' ', time) BETWEEN ? AND ? ORDER BY CONCAT(date, ' ', time);`;
@@ -226,8 +229,9 @@ class GWR {
                     const data = await db.query(query, [
                         deviceId,
                         from,
-                        to
+                        toPlusOne
                     ]);
+                    
                     resolve({ data:data[0] });
                 }
 
@@ -245,7 +249,7 @@ class GWR {
                         const avgResult = await db.query(avgQuery, [
                             deviceId,
                             from,
-                            to
+                            toPlusOne
                         ]);
                         resolve({ data: avgResult[0] });
                     } else if (average.includes("daily")) {
@@ -259,7 +263,7 @@ class GWR {
                         const avgResult = await db.query(avgQuery, [
                             deviceId,
                             from,
-                            to
+                            toPlusOne
                         ]);
                         resolve({ data: avgResult[0] });
                     }

@@ -230,13 +230,29 @@ class FMU {
 
         if (latestRow.length > 0) {
           const latestData = latestRow[0];
-
+        const toDate = new Date(to);
+        toDate.setDate(toDate.getDate() + 1);
+        const toPlusOne = toDate.toISOString().slice(0, 19).replace('T', ' '); // format 'YYYY-MM-DD HH:mm:ss'
           if (average === "no_average") {
             const query = `SELECT * FROM ?? WHERE ts BETWEEN ? AND ? ORDER BY ts;`;
             // Fetch the averages for the day of the latest data point
-            const data = await db.query(query, [deviceId, from, to]);
+            const data = await db.query(query, [deviceId, from, toPlusOne]);
             // console.log({ avgValue: data[0] });
-            resolve({ data: data[0] });
+             const formatDate = (d) => {
+              const date = new Date(d);
+              const pad = (n) => n.toString().padStart(2, "0");
+              return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+                date.getDate()
+              )} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+                date.getSeconds()
+              )}`;
+            };
+
+            const formattedData = data[0].map((row) => ({
+              ...row,
+              ts: formatDate(row.ts),
+            }));
+            resolve({ data: formattedData });
           }
 
           // console.log({ latestData });
@@ -264,7 +280,7 @@ class FMU {
             if (average.includes("hourly")) {
               const avgQuery = `SELECT DATE_FORMAT(ts, '%Y-%m-%d, %H:00') AS timeStamp, ${avgColumns} FROM ?? WHERE ts BETWEEN ? AND ? GROUP BY timeStamp ORDER BY timeStamp;`;
               // Fetch the averages for the day of the latest data point
-              const avgResult = await db.query(avgQuery, [deviceId, from, to]);
+              const avgResult = await db.query(avgQuery, [deviceId, from, toPlusOne]);
               // console.log({ avgValue: avgResult[0] });
               resolve({ data: avgResult[0] });
             } else if (average.includes("daily")) {
@@ -272,7 +288,7 @@ class FMU {
               // Fetch the averages for the day of the latest data point
 
               console.log(avgQuery);
-              const avgResult = await db.query(avgQuery, [deviceId, from, to]);
+              const avgResult = await db.query(avgQuery, [deviceId, from, toPlusOne]);
               // console.log({ avgValue: avgResult[0] });
               resolve({ data: avgResult[0] });
             }

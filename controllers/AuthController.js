@@ -20,6 +20,7 @@ const Reseller = require("../models/Reseller");
 const { stringify } = require("querystring");
 // const Admin = require("../models/Admin");
 const crypto = require("crypto");
+const Device = require("../models/Device");
 
 function decryptVendorId({ cipherText, iv }, secretKey) {
   const salt = Buffer.from("my-salt", "utf8");
@@ -614,9 +615,12 @@ const registerController = async (req, res) => {
             message: "Each device must have a valid deviceId.",
           });
         }
-        // const deviceInfo = await Device.GetDeviceAlias(deviceId);
-        // const alias = deviceInfo[0][0].alias
-        // productsList =[{deviceId:deviceId, alias:alias }]
+
+        const deviceInfo = await Device.GetDeviceAlias(deviceId);
+        const alias = deviceInfo[0][0].alias
+        var updatedProductsList =[{deviceId:deviceId, alias:alias }]
+
+
         const result = await Reseller.checkDevice(resolvedVendorId,deviceId);
   
         if (!result[0][0]) {
@@ -651,7 +655,7 @@ const registerController = async (req, res) => {
         success: true,
         message: "Reseller user registered successfully",
         token,
-      productsList,
+      productsList:updatedProductsList,
       address,
       email,
       firmName,
@@ -691,6 +695,7 @@ const registerController = async (req, res) => {
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: "1h" }
     );
+
     var userRole;
     if(vendorId){
       userRole = "resellerUser";
@@ -709,11 +714,12 @@ const registerController = async (req, res) => {
       vendorId,
     });
 
+
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: "User registered successfully",
       token,
-      productsList,
+      productsList:updatedProductsList,
       address,
       email,
       firmName,

@@ -126,7 +126,8 @@ const findAllUsersController = async (req, res) => {
   // to remove user
   const removeUserController = async (req, res) => {
     try {
-      const { email } = req.query;
+      var {email:adminEmail} = req.user;
+      var { email } = req.query;
   
       if (!email) {
         return res.status(400).send({
@@ -163,7 +164,7 @@ const findAllUsersController = async (req, res) => {
           message: "No Records Found",
         });
       }
-  
+      await Users.logUserActivity("admin" , email, "Remove User", `Admin removed user`, "success", adminEmail, {email});
       return res.status(200).send({
         success: true,
         message: "Deleted User Successfully",
@@ -171,6 +172,7 @@ const findAllUsersController = async (req, res) => {
   
     } catch (error) {
       console.error("Error deleting user:", error);
+      await Users.logUserActivity("admin" ,email, "Remove User", `error: ${error.message}`, "failure",adminEmail,{email});
       res.status(500).send({
         success: false,
         message: "An error occurred while deleting user",
@@ -183,9 +185,9 @@ const findAllUsersController = async (req, res) => {
   // update user info
   const updateUserInfoController = async (req, res) => {
     try {
-  
-      const {email} = req.query
-      const {  password, contact,firmName, address, } = req.body;
+      var {email:adminEmail} = req.user;
+      var {email} = req.query
+      var {  password, contact,firmName, address, } = req.body;
       if(!email){
         return res.status(400).send({
           success: false,
@@ -220,6 +222,7 @@ const findAllUsersController = async (req, res) => {
         }
     
         const updatedUser = await Users.findOne(email);
+         await Users.logUserActivity("admin" , email, "Update User Info", `Admin changed firm info of a user`,"success", adminEmail, {password, firmName, address, contact});
   
      
         res
@@ -232,6 +235,7 @@ const findAllUsersController = async (req, res) => {
     }
     catch (error) {
       console.error("Error updating user:", error);
+      await Users.logUserActivity("admin" ,email, "Update User Info", `error: ${error.message}`, "failure", adminEmail,{password, firmName, address, contact});
       res.status(500).send({
         success: false,
         message: "An Error occures while updating user ",
@@ -242,8 +246,9 @@ const findAllUsersController = async (req, res) => {
 // to update deviceId of user
 const updateUserDeviceInfoController = async (req, res) => {
   try {
-    const { email } = req.query;
-    let { deviceIds } = req.body; 
+    var {email:adminEmail} = req.user;   
+    var { email } = req.query;
+    var { deviceIds } = req.body; 
     
     if (!email) {
       return res.status(400).send({
@@ -337,7 +342,7 @@ const updateUserDeviceInfoController = async (req, res) => {
         message: "No matching user found or device info not updated.",
       });
     }
-
+ await Users.logUserActivity("admin" ,email, "Update Device Info", `Admin updated device:${deviceIds} info`, "success",adminEmail, {email, deviceIds});
     res.status(200).json({
       success: true,
       message: "Device info updated successfully.",
@@ -346,6 +351,7 @@ const updateUserDeviceInfoController = async (req, res) => {
 
   } catch (error) {
     console.error("Error updating devices:", error);
+     await Users.logUserActivity("admin" ,email, "Update Device Info", `error: ${error.message}`, "failure", adminEmail, {email, deviceIds });
     res.status(500).send({
       success: false,
       message: "An error occurred while updating devices.",
@@ -356,7 +362,8 @@ const updateUserDeviceInfoController = async (req, res) => {
    
  const AddParametersByAdminController = async (req, res) => {
     try {
-      const { paraName, paraUnit, paraKey, min, max } = req.body;
+      var {email} = req.user;
+      var { paraName, paraUnit, paraKey, min, max } = req.body;
   
       if (![paraName, paraUnit, paraKey].every(v => v.toString().trim())) {
         return res.status(400).json({
@@ -382,6 +389,7 @@ const updateUserDeviceInfoController = async (req, res) => {
         min,
         max
       );
+      await Users.logUserActivity("admin" ,email, "Add Parameter", `Admin added parameter: ${paraName}`, "success","",{ paraName, paraUnit, paraKey, min, max });
       return res.status(200).json({
         success: true,
         message: "Parameter added successfully.",
@@ -389,6 +397,8 @@ const updateUserDeviceInfoController = async (req, res) => {
   
     } catch (error) {
       console.error("Error adding parameter:", error);
+     await Users.logUserActivity("admin" ,email, "Add Parameter", `error: ${error.message}`, "failure", "", { paraName, paraUnit, paraKey, min, max });
+      
       return res.status(500).json({
         success: false,
         message: "An error occurred while adding the parameter.",
@@ -399,8 +409,9 @@ const updateUserDeviceInfoController = async (req, res) => {
   
   const UpdateRole = async (req, res) => {
     try {
-      const { email } = req.query;
-      const { newRole, name,vendorId } = req.body;
+      var {email:adminEmail} = req.user;
+      var { email } = req.query;
+      var { newRole, name,vendorId } = req.body;
   
       if (!email) {
         return res.status(400).send({
@@ -475,6 +486,7 @@ const updateUserDeviceInfoController = async (req, res) => {
         }
         await Admin.addReseller( name,email, deviceIds,vendorId);
       }
+       await Users.logUserActivity("admin" ,email, "Update Role", `Admin updated user role to ${newRole}`,"",adminEmail,{ newRole, name,vendorId } );
   
       return res.status(200).json({
         success: true,
@@ -482,6 +494,7 @@ const updateUserDeviceInfoController = async (req, res) => {
       });
     } catch (error) {
       console.error("Error updating role:", error);
+      await Users.logUserActivity("admin" ,email, "Update Role", `error: ${error.message}`, "failure", adminEmail, { newRole, name,vendorId } );
       return res.status(500).json({
         success: false,
         message: "An error occurred while updating role.",
@@ -491,8 +504,9 @@ const updateUserDeviceInfoController = async (req, res) => {
   };
   
   const removeDeviceFromUser = async (req, res) => {
-    const { email } = req.query;
-    const { deviceId } = req.body;
+    var {email:adminEmail} = req.user;
+    var { email } = req.query;
+    var { deviceId } = req.body;
   
     if (!email || !deviceId) {
       return res.status(400).json({
@@ -543,7 +557,7 @@ const updateUserDeviceInfoController = async (req, res) => {
           }
         }
       }
-  
+   await Users.logUserActivity("admin" ,email, "Remove User Device", `Admin removed user device:${deviceId} `, "success", adminEmail, {email, deviceId});
       return res.status(200).json({
         success: true,
         message: "Device removed from products list.",
@@ -551,6 +565,7 @@ const updateUserDeviceInfoController = async (req, res) => {
   
     } catch (error) {
       console.error("Error removing device:", error);
+      await Users.logUserActivity("admin" ,email, "Remove User Device", `error: ${error.message}`, "failure", adminEmail, {email, deviceId });
       return res.status(500).json({
         success: false,
         message: "Failed to remove device.",
@@ -563,8 +578,11 @@ const updateUserDeviceInfoController = async (req, res) => {
   const fetchAllDeviceDetails= async(req,res)=>{
     try {
         const [deviceDetails] = await Admin.fetchDevices(); 
-        
-        const formattedDeviceDetails = deviceDetails.map(device => ({
+        const today = new Date();
+        const formattedDeviceDetails = deviceDetails.map(device => {
+        const createdOnDate = new Date(device.created_on);
+         const diffInDays = Math.floor((today - createdOnDate) / (1000 * 60 * 60 * 24));
+         return{
           id: device.id, 
           type: device.type,
           deviceId: device.device_id,
@@ -574,8 +592,10 @@ const updateUserDeviceInfoController = async (req, res) => {
           alias: device.alias,
           deviceLocation: device.dev_location,
           manualLocation: device.manual_location,
-          activeStatus: device.active_status
-        }));
+          activeStatus: device.active_status,
+          warrantyStatus: (diffInDays > 365)? "Out of Warranty" : "In Warranty"
+         }
+        });
       
         return res.status(200).json({
           success: true,
@@ -593,7 +613,8 @@ const updateUserDeviceInfoController = async (req, res) => {
   }
  
   const addUser = async (req, res) => {
-    let { email, password, role, deviceIds, name,vendorId } = req.body;
+    var {email:adminEmail} = req.user;
+    var { email, password, role, deviceIds, name,vendorId } = req.body;
   
     if (!email || !password) {
       return res.status(400).json({
@@ -660,13 +681,15 @@ const updateUserDeviceInfoController = async (req, res) => {
       } else {
         await Admin.addUserByAdmin(email, password, roleId);
       }
-  
+      await Users.logUserActivity("admin" ,email, "Add User", `Admin added a new user `,"success",adminEmail,{ email, password, role, deviceIds, name,vendorId });
       return res.status(200).json({
         success: true,
         message: "User added successfully.",
       });
     } catch (error) {
       console.error("Error adding user:", error);
+           await Users.logUserActivity("admin" ,email, "Add User", `error: ${error.message}`, "failure", adminEmail, { email, password, role, deviceIds, name,vendorId });
+
       return res.status(500).json({
         success: false,
         message: "An error occurred while adding user.",
@@ -702,7 +725,8 @@ const updateUserDeviceInfoController = async (req, res) => {
   }
    const UpdateParametersByAdminController = async (req, res) => {
     try {
-      const { paraKey, paraUnit,paraName, min, max } = req.body;
+      var { paraKey, paraUnit,paraName, min, max } = req.body;
+      var {email} = req.user;
       if(!paraKey) {
       return res.status(400).json({
         success: false,
@@ -724,7 +748,7 @@ const updateUserDeviceInfoController = async (req, res) => {
             .status(StatusCodes.NOT_FOUND)
             .json({ success: false, message: "Can't Update Parameter Info!" });
         }
-     
+     await Users.logUserActivity("admin" ,email, "Updated Parameters", `Admin updated parameters `,"success","", { paraKey, paraUnit, paraName, min, max });
       return res.status(200).json({
         success: true,
         message: "Parameter updated successfully.",
@@ -732,6 +756,7 @@ const updateUserDeviceInfoController = async (req, res) => {
   
     } catch (error) {
       console.error("Error updating parameter:", error);
+      await Users.logUserActivity("admin" ,email, "Update Parameters", `error: ${error.message}`, "failure", "", { paraKey, paraUnit, paraName, min, max });
       return res.status(500).json({
         success: false,
         message: "An error occurred while updating the parameter.",

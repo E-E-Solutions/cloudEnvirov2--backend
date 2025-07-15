@@ -11,6 +11,7 @@ var client = new postmark.ServerClient("d7c1a2c7-ed9c-41ef-8dfa-0462caebdb92");
 // local imports
 const Users = require("../models/User");
 const Admin = require("../models/Admin");
+const Device = require("../models/Device");
 const CustomError = require("../errors/index");
 const { GetDeviceInfo } = require("../models/Device");
 
@@ -46,18 +47,27 @@ function decryptVendorId({ cipherText, iv }, secretKey) {
 
 // ======================================================== Login controller ===============================================================
 const loginController = async (req, res) => {
-
+ let currentUser;
   try {
- const { email, password, vendorId } = req.body;
+ var { email, password, vendorId } = req.body;
  console.log({ email, password, vendorId });
 
-let resolvedVendorId;
+var resolvedVendorId;
 if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.iv) {
   try {
     resolvedVendorId = await decryptVendorId(vendorId,  process.env.VENDOR_SECRET_KEY);
     console.log("Decrypted Vendor ID:", resolvedVendorId);
   } catch (err) {
     console.error("Decryption error:", err);
+await Users.logUserActivity(
+      "unknown",
+      email,
+      "Login",
+      `decryption error: ${err.message}`,
+      "failure",
+      "",
+      { email, password, resolvedVendorId }
+    );
     return res.status(400).json({
       success: false,
       message: "Failed to decrypt vendor ID",
@@ -87,7 +97,6 @@ if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.
       });
     }
 
-    let currentUser;
     let isReseller;
     const [userResult] = await Users.findByEmail(email);
     let user = userResult[0];
@@ -288,6 +297,7 @@ try {
         message: "Invalid Credentials",
       });
     }
+    
     // Generate JWT
     const token = jwt.sign(
       {
@@ -304,7 +314,6 @@ try {
       httpOnly: true,
       maxAge: 36000000,
     });
-
     const deviceIds = JSON.parse(currentUser.products_list || "[]");
 
     const productsList = await deviceIds.reduce(async (acc, deviceId) => {
@@ -318,6 +327,14 @@ try {
       acc = [...(await acc), { deviceId, alias }];
       return acc;
     }, []);
+    let role;
+     if(isReseller){
+      role = "resellerUser";
+    }
+    else{
+      role = currentUser.role
+       }
+    await Users.logUserActivity(role ,email, "Login", "User logged in","success","",{ email, password,resolvedVendorId });
   
   
     res.status(200).json({
@@ -331,8 +348,22 @@ try {
       contactNo: currentUser.contact || null,
       email: currentUser.email,
     });
+    
 
   } catch (error) {
+    let role
+     if(currentUser){
+      role = currentUser.role || "unknown";
+    }
+     await Users.logUserActivity(
+      role,
+      email,
+      "Login",
+      `error: ${error.message}`,
+      "failure",
+      "",
+      { email, password, resolvedVendorId }
+    );
     console.error("Login error:", error);
     res.status(500).json({
       success: false,
@@ -342,7 +373,7 @@ try {
 };
 
 const googleLoginController = async (req, res) => {
-  const { code } = req.query;
+  var { code } = req.query;
   try {
     if (!code) {
       throw new Error("Authorization code is missing.");
@@ -423,6 +454,7 @@ const googleLoginController = async (req, res) => {
     if (currentUser.contact) {
       contactNo = currentUser.contact;
     }
+    // await Users.logUserActivity(currentUser.role ,email, "Login", "User logged in successfully using google account","success","",{ email, code });
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -439,6 +471,7 @@ const googleLoginController = async (req, res) => {
     });
   } catch (er) {
     console.error("Error occurred:", er);
+      // await Users.logUserActivity(currentUser.role ,email, "Login", "error:error.message","failure","",{ email, code });
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: "Something went wrong | " + er.message,
@@ -454,7 +487,7 @@ const googleLoginController = async (req, res) => {
 
 const registerWithGoogleController = async (req, res) => {
   try {
-    const { email, firmName, productsList, contactNo, address } = req.body;
+    var { email, firmName, productsList, contactNo, address } = req.body;
     console.log({ reqBody: req.body });
     if (!email || !firmName || !productsList || !contactNo || !address) {
       return res
@@ -484,6 +517,7 @@ const registerWithGoogleController = async (req, res) => {
 
     // if (response[0]?.affectedRows > 0) {
     // res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully",  });
+    // await Users.logUserActivity(currentUser.role ,email, "Signup", "User registered using google account", "success","",{ email, password, role });
 
     res.status(StatusCodes.CREATED).json({
       success: true,
@@ -512,7 +546,7 @@ const registerWithGoogleController = async (req, res) => {
 
 const registerController = async (req, res) => {
   try {
-    const {
+    var {
       firmName,
       password,
       email,
@@ -536,12 +570,17 @@ const registerController = async (req, res) => {
         message: "Email is not valid",
       });
     }
-
-    const role = req.body.role || "user";
+    let role;
+    if(vendorId){
+     role = "resellerUser";
+    }
+    else{
+      role= "user"
+    }
     const roleId = await Admin.findRoleId(role);
 
     let success, message;
-    let resolvedVendorId;
+    let resolvedVendorId = null;
     if (vendorId && typeof vendorId === "object" && vendorId.cipherText && vendorId.iv) {
       try {
         resolvedVendorId = await decryptVendorId(vendorId,  process.env.VENDOR_SECRET_KEY);
@@ -554,8 +593,7 @@ const registerController = async (req, res) => {
         });
       }
     }
-    console.log({ resolvedVendorId });
-    if(!resolvedVendorId && !vendorId){
+    if(!resolvedVendorId && vendorId){
       return res.status(400).json({
         success: false,
         message: "Cannot resolve vendor id!",
@@ -577,9 +615,11 @@ const registerController = async (req, res) => {
             message: "Each device must have a valid deviceId.",
           });
         }
+
         const deviceInfo = await Device.GetDeviceAlias(deviceId);
         const alias = deviceInfo[0][0].alias
         var updatedProductsList =[{deviceId:deviceId, alias:alias }]
+
 
         const result = await Reseller.checkDevice(resolvedVendorId,deviceId);
   
@@ -655,7 +695,26 @@ const registerController = async (req, res) => {
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: "1h" }
     );
-    
+
+    var userRole;
+    if(vendorId){
+      userRole = "resellerUser";
+    }
+    else{
+      userRole = "user";
+    }
+     await Users.logUserActivity(userRole ,email, "Signup", "User registered", "success","",{
+      firmName,
+      password,
+      email,
+      productsList,
+      contactNo,
+      address,
+      otp,
+      vendorId,
+    });
+
+
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: "User registered successfully",
@@ -668,6 +727,16 @@ const registerController = async (req, res) => {
     });
   } catch (error) {
     console.error("Registration error:", error);
+      await Users.logUserActivity(userRole ,email, "Signup", `error: ${error.message}`,"failure","",{
+      firmName,
+      password,
+      email,
+      productsList,
+      contactNo,
+      address,
+      otp,
+      vendorId,
+    });
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: error || "Something went wrong during registration.",
@@ -677,8 +746,8 @@ const registerController = async (req, res) => {
 
 const forgetPasswordController = async (req, res) => {
   try {
-    const { email } = req.query;
-    const { password, otp } = req.body;
+    var { email,role } = req.query;
+    var { password, otp } = req.body;
 
     if (!email || !password || !otp) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -731,6 +800,7 @@ const forgetPasswordController = async (req, res) => {
     }
 
     if (response.affectedRows > 0) {
+      await Users.logUserActivity("" ,email, "Forget Password", "User changed password", "success", "", { email, password });
       return res.status(StatusCodes.OK).json({
         success: true,
         message: "Password updated successfully",
@@ -741,17 +811,19 @@ const forgetPasswordController = async (req, res) => {
         message: "Something went wrong!",
       });
     }
+    
 
   } catch (error) {
     console.error("Forget Password Error:", error);
+    await Users.logUserActivity("" ,email, "Forget Password", `error:${error.message}`,"failure", "", { email, password });
     throw new CustomError.BadRequestError("Failed to reset password");
   }
 }
 
 const changePasswordController = async (req, res) => {
   try {
-    const { email, role } = req.user;
-    const { oldPassword, newPassword } = req.body;
+    var { email, role } = req.user;
+    var { oldPassword, newPassword } = req.body;
 
     if (!email || !oldPassword || !newPassword) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -793,14 +865,16 @@ const changePasswordController = async (req, res) => {
         message: "Old password doesn't match",
       });
     }
-
+    await Users.logUserActivity(role ,email, "Changed Password", "User changed password", "success", "", { email, oldPassword, newPassword });
     return res.status(StatusCodes.OK).json({
+      
       success: true,
       message: "Password updated successfully",
     });
 
   } catch (error) {
     console.error("Error changing password:", error);
+    await Users.logUserActivity(role ,email, "Changed Password", `error:${error.message}`,"failure", "", { email, oldPassword, newPassword });
     throw new CustomError.BadRequestError("Failed to change password");
   }
 };
@@ -808,8 +882,8 @@ const changePasswordController = async (req, res) => {
 
 const updateFirmInfoController = async (req, res) => {
   try {
-    const { email, role } = req.user;
-    const { firmName, firmAddress, contactNo } = req.body;
+    var { email, role } = req.user;
+    var { firmName, firmAddress, contactNo } = req.body;
 
     if (!firmName || !firmAddress || !contactNo) {
       return res.status(400).json({
@@ -876,6 +950,7 @@ const updateFirmInfoController = async (req, res) => {
     }
 
     const { firm_name, address, contact } = updatedUser;
+    const logActivity = await Users.logUserActivity(role ,email, "Update Firm Info", "User updated firm info", "success", "",{ firmName, firmAddress, contactNo });
 
     res.status(200).json({
       success: true,
@@ -888,6 +963,7 @@ const updateFirmInfoController = async (req, res) => {
     });
   } catch (error) {
     console.error("Update Firm Info Error:", error);
+    await Users.logUserActivity(role ,email, "Update Firm Info", `error:${error.message}`,"failure", "",{ firmName, firmAddress, contactNo });
     res.status(500).json({
       success: false,
       message: "Internal Server Error",
@@ -899,7 +975,7 @@ const updateFirmInfoController = async (req, res) => {
 
 const sendOtpController = async (req, res) => {
   try {
-    const email = req.query.email;
+    var {email} = req.query;
     const response = await Users.generateOtp(email);
 
     if (!response.success) {
@@ -933,12 +1009,13 @@ const sendOtpController = async (req, res) => {
 
 const verifyOtpController = async (req, res) => {
   try {
-    const email = req.body.email;
+    const {email} = req.body.email;
     const otp = req.body.otp;
 
     const { success, message } = await Users.verifyOtp(email, otp);
     console.log({ success, message });
     if (success) {
+      
       return res.status(StatusCodes.OK).json({ success: true, message: "OTP verified successfully" });
     }
 

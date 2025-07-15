@@ -569,9 +569,9 @@ const GetLastDataByDuration = async (req, res) => {
 
 const GetLastAvgDataByCustomDuration = async (req, res) => {
   try {
-    const { email, role } = req.user;
-    const { from, to, average, duration } = req.body;
-    const { deviceId } = req.query;
+    var { email, role } = req.user;
+    var { from, to, average, duration } = req.body;
+    var { deviceId } = req.query;
     let result = null;
 
     console.log({ body: req.body });
@@ -692,9 +692,11 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
       return data;
     });
     console.log({ customReport });
+      await Users.logUserActivity(role ,email, "Get Data By Custom Duration", "User fetched data by custom duration","success","", { from, to, average, duration,deviceId });
     res.status(200).json({ success: true, data: customReport, deviceId });
   } catch (er) {
     console.log(er);
+     await Users.logUserActivity(role ,email, "Get Data By Custom Duration", `error: ${er}`,"failure","", { from, to, average, duration,deviceId });
     res
       .status(500)
       .send({ success: false, message: "Internal Server Error", detail: er });

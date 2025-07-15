@@ -104,6 +104,30 @@ module.exports = class Users {
   static forgetResellerUserPassword(emailId, newPassword) {
     return db.execute("UPDATE reseller_user_info SET password = ? WHERE email = ? ", [newPassword, emailId]);
   }
+   static logUserActivity(
+    userType,
+    userEmail,
+    action,
+    description,
+    status,
+    email = "",
+    input = {}
+  ) {
+   
+    return db.execute(
+      `INSERT INTO user_activity_log (user_type, user_email, action, description, status,email,input, timestamp)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        userType,
+        userEmail,
+        action,
+        description,
+        status,
+        email,
+        JSON.stringify(input),
+      ]
+    );
+  }
 
   static async getProducts(emailId) {
     const existingProducts = await db.execute("SELECT * FROM user_ WHERE email = ?", [emailId]);
@@ -277,5 +301,7 @@ static async updateLastLoginForResellerUser(email) {
                         );
                       }
                   }
+
+ 
   
 };

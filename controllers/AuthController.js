@@ -20,7 +20,6 @@ const Reseller = require("../models/Reseller");
 const { stringify } = require("querystring");
 // const Admin = require("../models/Admin");
 const crypto = require("crypto");
-const Device = require("../models/Device");
 
 function decryptVendorId({ cipherText, iv }, secretKey) {
   const salt = Buffer.from("my-salt", "utf8");

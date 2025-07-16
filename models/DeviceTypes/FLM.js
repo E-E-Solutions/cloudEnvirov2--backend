@@ -239,6 +239,9 @@ class FLM {
         const latestRow = await db.query(latestRowQuery, [deviceId]);
 
         if (latestRow.length > 0) {
+          const toDate = new Date(to);
+        toDate.setDate(toDate.getDate() + 1);
+        const toPlusOne = toDate.toISOString().slice(0, 19).replace('T', ' '); // format 'YYYY-MM-DD HH:mm:ss'
           // Check the totalizer column (assumed as numeric)
           const totalizerColumn = "cumm"; // Replace with the correct column name for totalizer
 
@@ -246,18 +249,29 @@ class FLM {
             // Query to get the initial and final totalizer values per day
             const query = `
              SELECT 
-              DATE(ts_server) AS timeStamp,
+              ts_server AS timeStamp,
               MIN(${totalizerColumn}) AS initial_totalizer,
               MAX(${totalizerColumn}) AS final_totalizer,
               ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow
               FROM ??
-              WHERE ts_server BETWEEN ? AND ?
+              WHERE ts_server >= ? AND ts_server <= ?
               GROUP BY DATE(ts_server)
               ORDER BY timeStamp;
             `;
-            const dailyResult = await db.query(query, [deviceId, from, to]);
-            console.log({ dailyResult: dailyResult[0] });
-            resolve({ data: dailyResult[0] });
+            const dailyResult = await db.query(query, [deviceId, from, toPlusOne]);
+            console.log("dailyResult", dailyResult[0]);
+             const formatDate = (d) => {
+              const date = new Date(d);
+              const pad = (n) => n.toString().padStart(2, "0");
+              return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+            };
+
+ const formattedData = dailyResult[0].map(row => ({
+              ...row,
+              timeStamp: formatDate(row.timeStamp)
+            }));
+        
+            resolve({ data: formattedData });
           } else if (average === "monthly") {
             // Query to get the initial and final totalizer values per month
             
@@ -268,7 +282,7 @@ class FLM {
                 MIN(ts_server) AS first_ts,
                 MAX(ts_server) AS last_ts
               FROM ??
-              WHERE ts_server BETWEEN ? AND ?
+              WHERE ts_server >= ? AND ts_server <= ?
               GROUP BY timeStamp
             )
             SELECT 
@@ -285,7 +299,7 @@ class FLM {
           const monthlyResult = await db.query(query, [
             deviceId,  // for CTE
             from,
-            to,
+            toPlusOne,
             deviceId,  // for initial
             deviceId   // for final
           ]);

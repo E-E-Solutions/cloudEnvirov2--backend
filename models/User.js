@@ -58,6 +58,15 @@ module.exports = class Users {
   static findOne(emailId) {
     return db.execute("SELECT * FROM user_ WHERE email = ?", [emailId]);
   }
+  static findByEmail(email){
+    return db.query(`
+      SELECT u.*, r.name AS role
+      FROM user_ u
+      LEFT JOIN user_roles r ON u.role_id = r.id
+      WHERE u.email = ?
+    `, [email]);
+    
+    }
 
   static findByEmail(email){
     return db.query(`
@@ -231,7 +240,7 @@ static async updateLastLoginForResellerUser(email) {
 
   static async verifyOtp(emailId, otp) {
     const [rows] = await db.execute("SELECT * FROM `cloud_enviro_otp` WHERE email = ?", [emailId]);
-   console.log(rows.length === 0, "rows", rows);
+
     if (!rows || rows.length === 0) {
       return { success: false, message: "OTP expired" };
     }
@@ -292,6 +301,7 @@ static async updateLastLoginForResellerUser(email) {
       return { success: true, msg: "Created", otp: otp };
     }
   }
+
    static createResellerUser(email,password,firmName,contact,address,vendorId,deviceIds){
                       if (deviceIds && Array.isArray(deviceIds) && deviceIds.length > 0) {
                         const deviceIdsJson = JSON.stringify(deviceIds);
@@ -302,6 +312,6 @@ static async updateLastLoginForResellerUser(email) {
                       }
                   }
 
- 
+
   
 };

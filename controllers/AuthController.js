@@ -6,6 +6,7 @@ var postmark = require("postmark");
 const htmlTemplate = require("../template/html/otp-mail");
 const { validateRequestBody, validateEmail } = require("../utils/common");
 const https = require("https"); // Use https for secure requests
+
 var client = new postmark.ServerClient("d7c1a2c7-ed9c-41ef-8dfa-0462caebdb92");
 
 // local imports
@@ -75,6 +76,7 @@ await Users.logUserActivity(
 }
 
 
+
     // if (!validateRequestBody(req.body, ["email", "password"])) {
     //   return res.status(400).json({
     //     success: false,
@@ -120,6 +122,7 @@ await Users.logUserActivity(
       if(roleRow){       
       roleId = roleRow.role_id;
       }
+
 
       const [userDetails] = await Users.findByRole(email,roleId)
      
@@ -299,6 +302,7 @@ try {
     
     // Generate JWT
     const token = jwt.sign(
+
       {
         email: currentUser.email,
         password: currentUser.password, 
@@ -349,6 +353,7 @@ try {
     });
     
 
+
   } catch (error) {
     let role
      if(currentUser){
@@ -372,6 +377,7 @@ try {
 };
 
 const googleLoginController = async (req, res) => {
+
   var { code } = req.query;
   try {
     if (!code) {
@@ -380,6 +386,7 @@ const googleLoginController = async (req, res) => {
     console.log({ code });
 
     const { email, name, picture } = await getUserInfoFromGoogle(code);
+
 
     const [userResult] = await Users.findByEmail(email);
     const user = userResult[0];
@@ -413,7 +420,6 @@ const googleLoginController = async (req, res) => {
       { expiresIn: "1h" }
     );
 
-   
 
     res.cookie("info-token-with-secret", token, {
       httpOnly: true,
@@ -453,7 +459,9 @@ const googleLoginController = async (req, res) => {
     if (currentUser.contact) {
       contactNo = currentUser.contact;
     }
+
     // await Users.logUserActivity(currentUser.role ,email, "Login", "User logged in successfully using google account","success","",{ email, code });
+
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -470,7 +478,9 @@ const googleLoginController = async (req, res) => {
     });
   } catch (er) {
     console.error("Error occurred:", er);
+
       // await Users.logUserActivity(currentUser.role ,email, "Login", "error:error.message","failure","",{ email, code });
+
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: "Something went wrong | " + er.message,
@@ -495,8 +505,11 @@ const registerWithGoogleController = async (req, res) => {
     }
 
     const password = "1mllf7imc5huf64r66dhqcc0t7jgh57j";
+
+
     const role = req.body.role || "user";
     const roleId = await Admin.findRoleId(role)
+
     console.log({
       firmName,
       password,
@@ -505,6 +518,7 @@ const registerWithGoogleController = async (req, res) => {
       contactNo,
       address,
     });
+
     
       const user = new Users(firmName, password, email, productsList, contactNo, address);
       user.save();
@@ -517,6 +531,7 @@ const registerWithGoogleController = async (req, res) => {
     // if (response[0]?.affectedRows > 0) {
     // res.status(StatusCodes.CREATED).json({ success: true, message: "User Register Successfully",  });
     // await Users.logUserActivity(currentUser.role ,email, "Signup", "User registered using google account", "success","",{ email, password, role });
+
 
     res.status(StatusCodes.CREATED).json({
       success: true,
@@ -545,6 +560,7 @@ const registerWithGoogleController = async (req, res) => {
 
 const registerController = async (req, res) => {
   try {
+
     var {
       firmName,
       password,
@@ -619,7 +635,6 @@ const registerController = async (req, res) => {
         const alias = deviceInfo[0][0].alias
         var updatedProductsList =[{deviceId:deviceId, alias:alias }]
 
-
         const result = await Reseller.checkDevice(resolvedVendorId,deviceId);
   
         if (!result[0][0]) {
@@ -652,6 +667,7 @@ const registerController = async (req, res) => {
     );
       return res.status(StatusCodes.CREATED).json({
         success: true,
+
         message: "Reseller user registered successfully",
         token,
       productsList:updatedProductsList,
@@ -749,6 +765,7 @@ const forgetPasswordController = async (req, res) => {
     var { password, otp } = req.body;
 
     if (!email || !password || !otp) {
+
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: "Please provide email, password, and OTP",
@@ -767,6 +784,7 @@ const forgetPasswordController = async (req, res) => {
     let currentUser = userResult[0];
     let isReseller = false;
 
+
     // If not found, check in Reseller table
     if (!currentUser) {
       const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
@@ -783,6 +801,7 @@ const forgetPasswordController = async (req, res) => {
 
     // Verify OTP
     const { success, message } = await Users.verifyOtp(email, otp);
+
     if (!success) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -796,6 +815,7 @@ const forgetPasswordController = async (req, res) => {
       [response] = await Users.forgetResellerUserPassword(email, password);
     } else {
       [response] = await Users.forgetPassword(email, password);
+
     }
 
     if (response.affectedRows > 0) {
@@ -825,6 +845,7 @@ const changePasswordController = async (req, res) => {
     var { oldPassword, newPassword } = req.body;
 
     if (!email || !oldPassword || !newPassword) {
+
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: "Please provide email, oldPassword, and newPassword",
@@ -834,6 +855,7 @@ const changePasswordController = async (req, res) => {
     // First check in Users table
     const [userResult] = await Users.findByEmail(email);
     let currentUser = userResult[0];
+
 
     // If not found in Users, check in Reseller
     if (!currentUser && role === "resellerUser") {
@@ -881,6 +903,7 @@ const changePasswordController = async (req, res) => {
 
 const updateFirmInfoController = async (req, res) => {
   try {
+
     var { email, role } = req.user;
     var { firmName, firmAddress, contactNo } = req.body;
 
@@ -890,6 +913,7 @@ const updateFirmInfoController = async (req, res) => {
         message: "Please provide firmName, firmAddress, and contactNo",
       });
     }
+
 
     let fetchUserDetails;
     if (role === "resellerUser") {
@@ -929,6 +953,7 @@ const updateFirmInfoController = async (req, res) => {
         success: false,
         message: "Firm information could not be updated",
       });
+
     }
 
     // Fetch updated data
@@ -947,6 +972,7 @@ const updateFirmInfoController = async (req, res) => {
         message: "Unable to fetch updated user information",
       });
     }
+
 
     const { firm_name, address, contact } = updatedUser;
     const logActivity = await Users.logUserActivity(role ,email, "Update Firm Info", "User updated firm info", "success", "",{ firmName, firmAddress, contactNo });
@@ -1008,13 +1034,15 @@ const sendOtpController = async (req, res) => {
 
 const verifyOtpController = async (req, res) => {
   try {
+
     const {email} = req.body.email;
+
     const otp = req.body.otp;
 
     const { success, message } = await Users.verifyOtp(email, otp);
     console.log({ success, message });
     if (success) {
-      
+
       return res.status(StatusCodes.OK).json({ success: true, message: "OTP verified successfully" });
     }
 
@@ -1067,6 +1095,7 @@ const userExistsController = async (req, res) => {
   } catch (error) {
     console.error("userExistsController error:", error);
     throw new CustomError.BadRequestError(error);
+
   }
 };
 

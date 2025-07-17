@@ -14,8 +14,7 @@ class ENE {
         // Fetch the latest row
         const latestRow = await db.query(latestRowQuery, [this.deviceId]);
 
-        console.log({latestRow, deviceId:this.deviceId})
-
+        console.log({ latestRow, deviceId: this.deviceId });
 
         if (latestRow[0].length > 0) {
           const latestData = latestRow[0];
@@ -233,13 +232,54 @@ class ENE {
 
         if (latestRow.length > 0) {
           const latestData = latestRow[0];
-
+          const toDate = new Date(to);
+          toDate.setDate(toDate.getDate() + 1);
+          const toPlusOne = toDate.toISOString().slice(0, 19).replace("T", " "); // format 'YYYY-MM-DD HH:mm:ss'
           if (average === "no_average") {
-            const query = `SELECT * FROM ?? WHERE ts_server BETWEEN ? AND ? ORDER BY ts_server;`;
+            // Get all column names except ts_server, ts_client, and _id
+            const columnsQuery = `
+              SELECT COLUMN_NAME 
+              FROM INFORMATION_SCHEMA.COLUMNS 
+              WHERE TABLE_NAME = ? 
+                AND COLUMN_NAME NOT IN ('ts_server', 'ts_client', '_id')
+            `;
+
+            const columnResult = await db.query(columnsQuery, [deviceId]);
+
+            // Build the SELECT list: timeStamp as the first column
+            const selectedColumns = columnResult[0]
+              .map((col) => `\`${col.COLUMN_NAME}\``)
+              .join(", ");
+
+            const query = `
+              SELECT ts_server AS timeStamp${
+                selectedColumns ? `, ${selectedColumns}` : ""
+              } 
+              FROM ?? 
+              WHERE ts_server >= ? AND ts_server < ?
+              ORDER BY ts_server;
+            `;
+
+            const data = await db.query(query, [deviceId, from, toPlusOne]);
+
+            // Format timeStamp before returning
+            const formatDate = (d) => {
+              const date = new Date(d);
+              const pad = (n) => n.toString().padStart(2, "0");
+              return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+                date.getDate()
+              )} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+                date.getSeconds()
+              )}`;
+            };
+
+            const formattedData = data[0].map((row) => ({
+              ...row,
+              timeStamp: formatDate(row.timeStamp),
+            }));
+
+            return resolve({ data: formattedData });
             // Fetch the averages for the day of the latest data point
-            const data = await db.query(query, [deviceId, from, to]);
-            // console.log({ avgValue: data[0] });
-            resolve({ data: data[0] });
           }
 
           // console.log({ latestData });
@@ -265,17 +305,25 @@ class ENE {
 
           if (avgColumns) {
             if (average.includes("hourly")) {
-              const avgQuery = `SELECT DATE_FORMAT(ts_server, '%Y-%m-%d, %H:00') AS timeStamp, ${avgColumns} FROM ?? WHERE ts_server BETWEEN ? AND ? GROUP BY timeStamp ORDER BY timeStamp;`;
+              const avgQuery = `SELECT DATE_FORMAT(ts_server, '%Y-%m-%d, %H:00') AS timeStamp, ${avgColumns} FROM ?? WHERE ts_server >= ? AND ts_server <= ? GROUP BY timeStamp ORDER BY timeStamp;`;
               // Fetch the averages for the day of the latest data point
-              const avgResult = await db.query(avgQuery, [deviceId, from, to]);
+              const avgResult = await db.query(avgQuery, [
+                deviceId,
+                from,
+                toPlusOne,
+              ]);
               // console.log({ avgValue: avgResult[0] });
               resolve({ data: avgResult[0] });
             } else if (average.includes("daily")) {
-              const avgQuery = `SELECT DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp, ${avgColumns} FROM ?? WHERE ts_server BETWEEN ? AND ? GROUP BY DATE_FORMAT(ts_server, '%Y-%m-%d') ORDER BY timeStamp;`;
+              const avgQuery = `SELECT DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp, ${avgColumns} FROM ?? WHERE ts_server >= ? AND ts_server <= ? GROUP BY DATE_FORMAT(ts_server, '%Y-%m-%d') ORDER BY timeStamp;`;
               // Fetch the averages for the day of the latest data point
 
               console.log(avgQuery);
-              const avgResult = await db.query(avgQuery, [deviceId, from, to]);
+              const avgResult = await db.query(avgQuery, [
+                deviceId,
+                from,
+                toPlusOne,
+              ]);
               // console.log({ avgValue: avgResult[0] });
               resolve({ data: avgResult[0] });
             }

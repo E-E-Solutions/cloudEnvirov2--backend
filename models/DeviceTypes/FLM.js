@@ -11,17 +11,23 @@ class FLM {
         const totalizerColumn = "cumm";
 
         // Query to get the latest row    
-        const latestRowQuery = `
-                WITH last_date AS (
-                    SELECT MAX(DATE(ts_server)) AS max_date FROM ??
-                )
-                SELECT 
-                    DATE_FORMAT(MAX(ts_server), '%Y-%m-%d %H:%i:%s') AS ts_server,
-                    MAX(??) AS final_totalizer,
-                    ROUND((MAX(??) - MIN(??)), 2) AS daily_flow
-                FROM ??
-                WHERE DATE(ts_server) = (SELECT max_date FROM last_date);
-            `;
+      const latestRowQuery = `
+    WITH last_date AS (
+        SELECT MAX(DATE(ts_server)) AS max_date FROM ??
+    )
+    SELECT 
+        DATE_FORMAT(MAX(ts_server), '%Y-%m-%d %H:%i:%s') AS ts_server,
+        MAX(??) AS final_totalizer,
+        ROUND((MAX(??) - MIN(??)), 2) AS daily_flow,
+        (SELECT _read 
+         FROM ?? 
+         WHERE DATE(ts_server) = (SELECT max_date FROM last_date) 
+         ORDER BY ts_server DESC 
+         LIMIT 1) AS flow
+    FROM ??
+    WHERE DATE(ts_server) = (SELECT max_date FROM last_date);
+`;
+
 
         // Fetch the latest row
         const [latestRow] = await db.query(latestRowQuery, [
@@ -30,6 +36,7 @@ class FLM {
           totalizerColumn,
           totalizerColumn,
           this.deviceId,
+          this.deviceId 
         ]);
 
         // Check if latestRow is defined and has data
@@ -174,54 +181,79 @@ class FLM {
     });
   }
 
-  static getLastDataByDuration(deviceId, duration) {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const latestRowQuery = "SELECT * FROM ?? ORDER BY _id DESC LIMIT 1";
-
-        // Fetch the latest row
-        const latestRow = await db.query(latestRowQuery, [deviceId]);
-
-        if (latestRow.length > 0) {
-          const totalizerColumn = "cumm";
-          if (duration.includes("day")) {
-            duration = duration.split("_")[0];
-            const avgQuery = `WITH last_date AS (SELECT MAX(DATE(ts_server)) AS max_date FROM ??) SELECT  DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp,
-                MIN(${totalizerColumn}) AS initial_totalizer,
-                MAX(${totalizerColumn}) AS final_totalizer,
-                ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow FROM ?? WHERE ts_server BETWEEN (SELECT max_date - INTERVAL ? DAY FROM last_date) AND (SELECT max_date + INTERVAL 1 DAY - INTERVAL 1 SECOND FROM last_date)  GROUP BY timeStamp ORDER BY timeStamp;`;
-            // Fetch the averages for the day of the latest data point
-            const avgResult = await db.query(avgQuery, [
-              deviceId,
-              deviceId,
-              Number(duration) - 1,
-            ]);
-            // console.log({ avgValue: avgResult[0] });
-            resolve({ data: avgResult[0] });
-          } else if (duration.includes("month")) {
-            duration = duration.split("_")[0];
-            const avgQuery = `WITH last_date AS (SELECT MAX(DATE(ts_server)) AS max_date FROM ??) SELECT  DATE_FORMAT(ts_server, '%Y-%m-%d') AS timeStamp,
-                MIN(${totalizerColumn}) AS initial_totalizer,
-                MAX(${totalizerColumn}) AS final_totalizer,
-                ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow FROM ?? WHERE ts_server BETWEEN (SELECT max_date - INTERVAL ? MONTH FROM last_date) AND (SELECT max_date + INTERVAL 1 DAY - INTERVAL 1 SECOND FROM last_date) GROUP BY DATE_FORMAT(ts_server, '%Y-%m-%d') ORDER BY timeStamp;`;
-            // Fetch the averages for the day of the latest data point
-            const avgResult = await db.query(avgQuery, [
-              deviceId,
-              deviceId,
-              duration,
-            ]);
-            // console.log({ avgValue: avgResult[0] });
-            resolve({ data: avgResult[0] });
-          }
-        } else {
-          resolve(null); // No data found
-        }
-      } catch (er) {
-        console.log(er);
-        reject(er);
-      }
-    });
-  }
+ static getLastDataByDuration(deviceId, duration) {
+   return new Promise(async (resolve, reject) => {
+     try {
+       const latestRowQuery = "SELECT * FROM ?? ORDER BY _id DESC LIMIT 1";
+       const latestRow = await db.query(latestRowQuery, [deviceId]);
+ 
+       if (latestRow.length > 0) {
+         const totalizerColumn = "cumm";
+         const intervalUnit = duration.includes("month") ? "MONTH" : "DAY";
+         const groupByFormat = "%Y-%m-%d"; // Keep grouping by day in both cases
+         const periodValue = Number(duration.split("_")[0]);
+ 
+         const avgQuery = `
+           WITH latest_date AS (
+             SELECT MAX(DATE(ts_server)) AS max_date FROM ??
+           ),
+           daily_data AS (
+             SELECT  
+               DATE(ts_server) AS day,
+               DATE_FORMAT(ts_server, '${groupByFormat}') AS timeStamp,
+               MIN(${totalizerColumn}) AS initial_totalizer,
+               MAX(${totalizerColumn}) AS final_totalizer,
+               ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow
+             FROM ??
+             WHERE ts_server BETWEEN 
+               (SELECT max_date - INTERVAL ? ${intervalUnit} FROM latest_date) AND 
+               (SELECT max_date + INTERVAL 1 DAY - INTERVAL 1 SECOND FROM latest_date)
+             GROUP BY day
+           ),
+           flow_data AS (
+             SELECT 
+               DATE(ts_server) AS day,
+               _read AS flow
+             FROM ??
+             WHERE _id IN (
+               SELECT MAX(_id)
+               FROM ??
+               WHERE ts_server BETWEEN 
+                 (SELECT max_date - INTERVAL ? ${intervalUnit} FROM latest_date) AND 
+                 (SELECT max_date + INTERVAL 1 DAY - INTERVAL 1 SECOND FROM latest_date)
+               GROUP BY DATE(ts_server)
+             )
+           )
+           SELECT 
+             d.timeStamp,
+             d.initial_totalizer,
+             d.final_totalizer,
+             d.daily_flow,
+             f.flow
+           FROM daily_data d
+           LEFT JOIN flow_data f ON d.day = f.day
+           ORDER BY d.timeStamp;
+         `;
+ 
+         const avgResult = await db.query(avgQuery, [
+           deviceId, // for latest_date
+           deviceId, // for daily_data
+           periodValue,
+           deviceId, // for flow_data
+           deviceId, // for subquery in flow_data
+           periodValue,
+         ]);
+ 
+         resolve({ data: avgResult[0] });
+       } else {
+         resolve(null);
+       }
+     } catch (er) {
+       console.error("Query Error:", er);
+       reject(er);
+     }
+   });
+ }
 
   static getLastAvgDataByCustomDuration(deviceId, from, to, average) {
     return new Promise(async (resolve, reject) => {
@@ -232,39 +264,85 @@ class FLM {
         const latestRow = await db.query(latestRowQuery, [deviceId]);
 
         if (latestRow.length > 0) {
+          const toDate = new Date(to);
+        toDate.setDate(toDate.getDate() + 1);
+        const toPlusOne = toDate.toISOString().slice(0, 19).replace('T', ' '); // format 'YYYY-MM-DD HH:mm:ss'
           // Check the totalizer column (assumed as numeric)
           const totalizerColumn = "cumm"; // Replace with the correct column name for totalizer
 
           if (average === "daily") {
             // Query to get the initial and final totalizer values per day
             const query = `
-             SELECT 
+            SELECT 
               DATE(ts_server) AS timeStamp,
               MIN(${totalizerColumn}) AS initial_totalizer,
               MAX(${totalizerColumn}) AS final_totalizer,
-              ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow
-              FROM ??
-              WHERE ts_server BETWEEN ? AND ?
-              GROUP BY DATE(ts_server)
-              ORDER BY timeStamp;
-            `;
-            const dailyResult = await db.query(query, [deviceId, from, to]);
-            console.log({ dailyResult: dailyResult[0] });
-            resolve({ data: dailyResult[0] });
+              ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS daily_flow,
+              (
+                SELECT _read
+                FROM ?? sub
+                WHERE DATE(sub.ts_server) = DATE(main.ts_server)
+                ORDER BY sub.ts_server DESC
+                LIMIT 1
+              ) AS flow
+            FROM ?? main
+            WHERE ts_server BETWEEN ? AND ?
+            GROUP BY DATE(ts_server)
+            ORDER BY timeStamp;
+          `;
+            const dailyResult = await db.query(query, [deviceId,deviceId, from, toPlusOne]);
+            console.log("dailyResult", dailyResult[0]);
+             const formatDate = (d) => {
+              const date = new Date(d);
+              const pad = (n) => n.toString().padStart(2, "0");
+              return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+            };
+
+ const formattedData = dailyResult[0].map(row => ({
+              ...row,
+              timeStamp: formatDate(row.timeStamp)
+            }));
+        
+            resolve({ data: formattedData });
           } else if (average === "monthly") {
             // Query to get the initial and final totalizer values per month
+            
             const query = `
+            WITH monthly_boundaries AS (
               SELECT 
                 DATE_FORMAT(ts_server, '%Y-%m') AS timeStamp,
-                MIN(${totalizerColumn}) AS initial_totalizer,
-                MAX(${totalizerColumn}) AS final_totalizer,
-                ROUND((MAX(${totalizerColumn}) - MIN(${totalizerColumn})), 2) AS monthly_flow
-              FROM ??
-              WHERE ts_server BETWEEN ? AND ?
+                MIN(ts_server) AS first_ts,
+                MAX(ts_server) AS last_ts,
+                (
+                SELECT _read
+                FROM ?? sub
+                WHERE DATE_FORMAT(sub.ts_server, '%Y-%m') = DATE_FORMAT(main.ts_server, '%Y-%m')
+                ORDER BY sub.ts_server DESC
+                LIMIT 1
+              ) AS flow
+              FROM ?? main
+              WHERE ts_server >= ? AND ts_server <= ?
               GROUP BY timeStamp
-              ORDER BY timeStamp;
-            `;
-            const monthlyResult = await db.query(query, [deviceId, from, to]);
+            )
+            SELECT 
+              mb.timeStamp,
+              f_init.${totalizerColumn} AS initial_totalizer,
+              f_final.${totalizerColumn} AS final_totalizer,
+              ROUND(f_final.${totalizerColumn} - f_init.${totalizerColumn}, 2) AS monthly_flow
+            FROM monthly_boundaries mb
+            JOIN ?? f_init ON DATE_FORMAT(f_init.ts_server, '%Y-%m') = mb.timeStamp AND f_init.ts_server = mb.first_ts
+            JOIN ?? f_final ON DATE_FORMAT(f_final.ts_server, '%Y-%m') = mb.timeStamp AND f_final.ts_server = mb.last_ts
+            ORDER BY mb.timeStamp;
+          `;
+          
+          const monthlyResult = await db.query(query, [
+            deviceId,  // for CTE
+            deviceId,
+            from,
+            toPlusOne,
+            deviceId,  // for initial
+            deviceId   // for final
+          ]);
 
             resolve({ data: monthlyResult[0] });
           } else {

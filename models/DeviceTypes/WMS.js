@@ -230,11 +230,13 @@ class WMS {
 
         if (latestRow.length > 0) {
           const latestData = latestRow[0];
-
+       const toDate = new Date(to);
+        toDate.setDate(toDate.getDate() + 1);
+        const toPlusOne = toDate.toISOString().slice(0, 19).replace('T', ' '); // format 'YYYY-MM-DD HH:mm:ss'
           if (average === "no_average") {
             const query = `SELECT * FROM ?? WHERE _13 BETWEEN ? AND ? ORDER BY _13;`;
             // Fetch the averages for the day of the latest data point
-            const data = await db.query(query, [deviceId, from, to]);
+            const data = await db.query(query, [deviceId, from, toPlusOne]);
             // console.log({ avgValue: data[0] });
             resolve({ data: data[0] });
           }
@@ -264,7 +266,7 @@ class WMS {
             if (average.includes("hourly")) {
               const avgQuery = `SELECT DATE_FORMAT(_13, '%Y-%m-%d, %H:00') AS timeStamp, ${avgColumns} FROM ?? WHERE _13 BETWEEN ? AND ? GROUP BY timeStamp ORDER BY timeStamp;`;
               // Fetch the averages for the day of the latest data point
-              const avgResult = await db.query(avgQuery, [deviceId, from, to]);
+              const avgResult = await db.query(avgQuery, [deviceId, from, toPlusOne]);
               // console.log({ avgValue: avgResult[0] });
               resolve({ data: avgResult[0] });
             } else if (average.includes("daily")) {
@@ -272,7 +274,7 @@ class WMS {
               // Fetch the averages for the day of the latest data point
 
               console.log(avgQuery);
-              const avgResult = await db.query(avgQuery, [deviceId, from, to]);
+              const avgResult = await db.query(avgQuery, [deviceId, from, toPlusOne]);
               // console.log({ avgValue: avgResult[0] });
               resolve({ data: avgResult[0] });
             }

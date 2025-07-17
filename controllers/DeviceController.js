@@ -6,19 +6,33 @@ const {
   validateRequestBody,
   getDeviceType,
 } = require("../utils/common");
+const Reseller = require("../models/Reseller");
 
 const AddDeviceController = async (req, res) => {
   try {
-    const { email } = req.user;
-    const { deviceId, serialNo } = req.body;
-
-    const user = await Users.findOne(email);
-
-    if (!user[0][0]) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User not found" });
-    }
+    var { email,role } = req.user;
+    var { deviceId, serialNo } = req.body;
+    const [userResult] = await Users.findByEmail(email);
+        const user = userResult[0];
+    
+        // If not found, try reseller
+        let currentUser = user;
+        let isReseller = false;
+    
+        if (!currentUser) {
+          const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
+          currentUser = resellerResult[0];
+          isReseller = true;
+        }
+    
+        // If still not found
+        if (!currentUser) {
+          return res.status(400).json({
+            success: false,
+            message: "User does not exist!",
+          });
+        }
+    deviceId = deviceId.toUpperCase();
     console.log({ email, deviceId, serialNo });
 
     const DeviceObj = new Device(deviceId, serialNo);
@@ -32,7 +46,21 @@ const AddDeviceController = async (req, res) => {
         .json({ success: false, message: "Device not found" });
     }
 
-    let existingProducts = await Users.getProducts(email);
+    let existingProducts;
+    if (role === "resellerUser") {
+      const vendorId = currentUser.vendor_id
+      const verifyResellerDevices = await Reseller.checkDevice(vendorId,deviceId);
+      if (!verifyResellerDevices[0][0]) {
+        return res.status(400).json({
+          success: false,
+          message: "Device not assigned to your reseller.",
+        });
+      }
+      existingProducts = await Users.getResellerUserProducts(email);
+    }
+     else {
+          existingProducts = await Users.getProducts(email);
+        }
 
     console.log({ existingProducts: existingProducts });
 
@@ -49,19 +77,34 @@ const AddDeviceController = async (req, res) => {
 
     const products = [...existingProducts, deviceId];
     console.log({ products });
-    const addProductResult = await Users.addProduct(email, products);
+    let addProductResult;
+    if(role === "reseller"){
+    addProductResult = await Users.addResellerProduct(email, products);
+    await Users.addProduct(email, products);
+    }
+    else if(role === "resellerUser"){
+    addProductResult = await Users.addResellerUserProduct(email, products);
+
+    }
+    else{
+    addProductResult = await Users.addProduct(email, products);
+
+    }
     console.log({ addProductResult });
     console.log(addProductResult[0].affectedRows);
     if (addProductResult[0].affectedRows > 0) {
+      const logActivity = await Users.logUserActivity(role ,email, "Add Device", `User added a new device ${deviceId}`, "success", "",{ deviceId, serialNo });
       return res.status(200).json({
         success: true,
         message: "Device added successfully",
         productsList: products,
       });
     }
+    
 
     // res.status(200).json({ message: "Device already exists" });
   } catch (er) {
+    await Users.logUserActivity(role ,email, "Add Device", `error: ${er.message}`, "failure", "",{ deviceId, serialNo });
     console.log(er);
     res.status(500).json({ success: false, message: er });
   }
@@ -88,9 +131,9 @@ const ValidateDeviceController = async (req, res) => {
 
 const UpdateAliasController = async (req, res) => {
   try {
-    const { deviceId } = req.query;
-    const { alias } = req.body;
-    const { email } = req.user;
+    var { deviceId } = req.query;
+    var { alias } = req.body;
+    var { email,role } = req.user;
     console.log(req.body);
 
     console.log({ email, alias, deviceId });
@@ -101,7 +144,15 @@ const UpdateAliasController = async (req, res) => {
       });
     }
 
-    const [fetchUserDetails] = await Users.findOne(email);
+    let fetchUserDetails;
+
+    if (role === "resellerUser") {
+      const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
+      fetchUserDetails = resellerResult;
+    } else {
+      const [userResult] = await Users.findOne(email);
+      fetchUserDetails = userResult;
+    }
     console.log({ fetchUserDetails: fetchUserDetails[0] });
 
     if (!fetchUserDetails[0].products_list.includes(deviceId)) {
@@ -119,12 +170,14 @@ const UpdateAliasController = async (req, res) => {
         .status(501)
         .json({ success: false, message: "Alias not Updated!" });
     }
+   await Users.logUserActivity(role ,email, "Update alias", `User updated device: ${deviceId} alias`, "success", "",{ deviceId, alias });
 
     res
       .status(200)
       .json({ success: true, message: "Alias Updated Successfully!" });
   } catch (er) {
     console.log(er);
+    await Users.logUserActivity(role ,email, "Update alias", `error: ${er.message}`, "failure", "",{ deviceId, alias });
     res
       .status(500)
       .json({ success: false, message: "Internal Server Error | " + er });
@@ -134,8 +187,8 @@ const UpdateAliasController = async (req, res) => {
 const UpdateLocationController = async (req, res) => {
   try {
     // const {deviceId} = req.query;
-    const { address, latitude, longitude, deviceIds } = req.body;
-    const { email } = req.user;
+    var { address, latitude, longitude, deviceIds } = req.body;
+    var { email,role } = req.user;
     console.log(req.body);
 
     console.log({ email, address, latitude, longitude, deviceIds });
@@ -152,10 +205,18 @@ const UpdateLocationController = async (req, res) => {
           "Request body should contain - latitude, longitude, deviceIds and address",
       });
     }
+    let fetchUserDetails;
 
-    const [fetchUserDetails] = await Users.findOne(email);
+    if (role === "resellerUser") {
+      const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
+      fetchUserDetails = resellerResult;
+    } else {
+      const [userResult] = await Users.findOne(email);
+      fetchUserDetails = userResult;
+    }
+    
     console.log({ fetchUserDetails: fetchUserDetails[0] });
-
+if(role !=="admin"){
     if (
       !deviceIds.every((element) =>
         fetchUserDetails[0].products_list.includes(element)
@@ -167,6 +228,7 @@ const UpdateLocationController = async (req, res) => {
           "This device is not in your device list, So you cannot Update its Location",
       });
     }
+  }
 
     const location = `${longitude};${latitude};${address}`;
 
@@ -179,6 +241,7 @@ const UpdateLocationController = async (req, res) => {
     );
 
     if (allPromises.every((value) => value)) {
+      await Users.logUserActivity(role ,email, "Update location", `User updated device: ${deviceIds} location`, "success", "",{ deviceIds, address, latitude, longitude });
       res
         .status(200)
         .json({ success: true, message: "Location Updated Successfully!" });
@@ -191,6 +254,7 @@ const UpdateLocationController = async (req, res) => {
     }
   } catch (er) {
     console.log(er);
+    await Users.logUserActivity(role ,email, "Update location", `error: ${er.message}`, "failure", "",{ deviceIds, address, latitude, longitude }); 
     res
       .status(500)
       .json({ success: false, message: "Internal Server Error | " + er });
@@ -218,16 +282,21 @@ const GetDeviceInfoController = async (req, res) => {
 
 const GetUserDevicesInfoController = async (req, res) => {
   try {
-    const { email } = req.user;
+    const { email,role } = req.user;
 
     let returnableObj = [];
-    let products = await Users.getProducts(email);
+    let products;
+    if (role === "resellerUser") {
+      products = await Users.getResellerUserProducts(email);
+    } else {
+      products = await Users.getProducts(email);
+    }
     products = products === "" ? "[]" : products;
 
     let productsList = JSON.parse(products);
     console.log({ productsList });
 
-    if (productsList.length === 0) {
+    if (productsList === null || productsList.length === 0) {
       return res.status(401).json({
         success: false,
         message:
@@ -271,7 +340,7 @@ const GetUserDevicesInfoController = async (req, res) => {
 
         // Get location and address for the device
         const [deviceInfo] = await Device.GetDeviceInfo(deviceId);
-
+        if(deviceInfo[0]){
         console.log({ deviceInfo: deviceInfo[0] });
 
         const { type: deviceType, sno, created_on, alias } = deviceInfo[0];
@@ -279,6 +348,7 @@ const GetUserDevicesInfoController = async (req, res) => {
         // return;
 
         const [long, lat, address] = deviceInfo[0].dev_location.split(";");
+
 
         // Attach location info to the device's status object
         objValue.deviceId = deviceId;
@@ -289,7 +359,9 @@ const GetUserDevicesInfoController = async (req, res) => {
         objValue.location = [lat, long];
         objValue.address = address;
         return { ...objValue };
+        }
       })
+    
     );
 
     // Respond with the final result
@@ -304,17 +376,21 @@ const GetUserDevicesInfoController = async (req, res) => {
 
 const GetUserDevicesStatusController = async (req, res) => {
   try {
-    const { email } = req.user;
+    const { email,role } = req.user;
 
     let returnableObj = [];
-    let products = await Users.getProducts(email);
+    let products;
+    if (role === "resellerUser") {
+      products = await Users.getResellerUserProducts(email);
+    } else {
+      products = await Users.getProducts(email);
+    }
     products = products === "" ? "[]" : products;
 
     let productsList = JSON.parse(products);
     console.log({ productsList });
-
-    if (productsList.length === 0) {
-      return res.status(401).json({
+    if (productsList === null || productsList.length === 0) {
+      return res.status(401).json({ 
         success: false,
         message:
           "No device found in the products list. Please Add your device to access the data",
@@ -356,63 +432,93 @@ const GetUserDevicesStatusController = async (req, res) => {
 
 const DeleteDeviceController = async (req, res) => {
   try {
-    const { deviceIds } = req.body;
-    const { email } = req.user;
+    var { deviceIds } = req.body;
+    var { email, role } = req.user;
 
-    console.log({ email });
-
-    if (!deviceIds) {
+    if (!deviceIds || !Array.isArray(deviceIds)) {
       return res
         .status(400)
         .json({ success: false, message: "Device IDs are required" });
     }
 
-    const user = await Users.findOne(email);
+    // Normalize input deviceIds to uppercase
+    const normalizedDeviceIds = deviceIds.map((id) => id.toUpperCase());
 
-    if (!user[0][0]) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User not found" });
+    const [userResult] = await Users.findByEmail(email);
+    let currentUser = userResult[0];
+
+    if (!currentUser) {
+      const [resellerResult] = await Reseller.findResellersUserByEmailId(email);
+      currentUser = resellerResult[0];
     }
 
-    let products = await Users.getProducts(email);
-
-    console.log({ products });
-
-    products = products ? products : "[]";
-
-    products = JSON.parse(products);
-
-    if (!deviceIds.every((deviceId) => products.includes(deviceId))) {
+    if (!currentUser) {
       return res.status(400).json({
         success: false,
-        message: "Device not found in your device list",
+        message: "User does not exist!",
       });
     }
 
-    let remainingDevices = [];
+    let products;
+    if (role === "resellerUser") {
+      products = await Users.getResellerUserProducts(email);
+    } else {
+      products = await Users.getProducts(email);
+    }
 
-    remainingDevices = products.filter(
-      (existingDevice) => !deviceIds.includes(existingDevice)
+    products = typeof products === "string" ? JSON.parse(products) : products || [];
+
+    // Ensure all requested deviceIds exist in user’s current device list
+    if (!normalizedDeviceIds.every((deviceId) => products.includes(deviceId))) {
+      return res.status(400).json({
+        success: false,
+        message: "One or more devices not found in your device list",
+      });
+    }
+
+    // Filter out devices to delete
+    const remainingDevices = products.filter(
+      (device) => !normalizedDeviceIds.includes(device)
     );
-    console.log({ remainingDevices });
 
-    const result = await Users.addProduct(email, remainingDevices);
-    console.log({ result });
+    let result;
 
-    if (result[0].affectedRows === 0) {
+    if (role === "reseller") {
+      const vendorId = await Reseller.findVendorId(email)
+      const [resellerUsersResult] = await Reseller.fetchResellerUsers(vendorId[0][0].vendor_id);
+      const userEmails = resellerUsersResult.map((u) => u.email);
+
+      // Update all associated reseller users
+      for (const userEmail of userEmails) {
+        await Users.addResellerUserProduct(userEmail, remainingDevices);
+      }
+
+      await Users.addResellerProduct(email, remainingDevices);
+      result = await Users.addProduct(email, remainingDevices);
+    } else if (role === "resellerUser") {
+      result = await Users.addResellerUserProduct(email, remainingDevices);
+    } else {
+      result = await Users.addProduct(email, remainingDevices);
+    }
+
+    if (!result || result[0].affectedRows === 0) {
       return res
         .status(400)
         .json({ success: false, message: "Failed to delete device" });
     }
-
-    res
+    await Users.logUserActivity(role ,email, "Delete device", `User deleted device: ${deviceIds}`, "success", "",{ deviceIds });
+    return res
       .status(200)
-      .json({ success: true, message: "Device deleted successfully!" });
+      .json({ success: true, message: "Device(s) deleted successfully!" });
   } catch (er) {
-    console.log(er);
+    console.error("DeleteDeviceController Error:", er);
+    await Users.logUserActivity(role ,email, "Delete device", `error: ${er.message}`, "failure", "",{ deviceIds });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error | " + er });
   }
 };
+
 
 module.exports = {
   AddDeviceController,

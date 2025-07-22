@@ -186,5 +186,10 @@ static async fetchResellerUserDevices(email) {
           static async fetchAllRevokedDeviceIds(email){
             return db.execute(`SELECT * FROM device_status_info WHERE email = ?`, [email])
           }
+            static GetDeviceAlias(deviceIds) {
+            const placeholders = deviceIds.map(() => '?').join(','); // "?, ?, ?"
+            const sql = `SELECT device_id, alias FROM id_create_info WHERE device_id IN (${placeholders})`;
+            return db.execute(sql, deviceIds);
+          }
       
 }

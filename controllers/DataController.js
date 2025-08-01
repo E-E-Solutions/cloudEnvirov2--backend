@@ -375,7 +375,7 @@ const GetDataPointsPerYear = async (req, res) => {
 
     let returnableObj = [];
     let products = await Users.getProducts(email);
-    if (!products.includes(deviceId) && role !== "admin") {
+    if (!products.includes(deviceId) && (role !== "admin" || role!="superadmin")) {
       return res.status(400).send({
         success: false,
         message: "You are not authorized to access this device",

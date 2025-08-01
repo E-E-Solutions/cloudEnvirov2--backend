@@ -67,7 +67,7 @@ const SetMapSettings = async (req, res) => {
 const SetParaInfo = async (req, res) => {
   try {
     let { email,role } = req.user;
-    if(role === "reseller" || role === "admin"){
+    if(role === "reseller" || role === "admin" || role === "superadmin") {
        email = req.body.email;
        if (!email ) {
         return res

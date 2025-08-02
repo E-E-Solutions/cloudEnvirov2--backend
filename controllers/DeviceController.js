@@ -216,7 +216,7 @@ const UpdateLocationController = async (req, res) => {
     }
     
     console.log({ fetchUserDetails: fetchUserDetails[0] });
-if(role !=="admin"){
+if(role !=="admin" || role!=="superadmin"){
     if (
       !deviceIds.every((element) =>
         fetchUserDetails[0].products_list.includes(element)

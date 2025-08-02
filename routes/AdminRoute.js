@@ -16,18 +16,18 @@ const {
     fetchAllParameterDetails,
   } = require("../controllers/AdminController");
   
-router.delete("/deleteUser",requireRole('admin'), removeUserController )
-router.get("/fetchAllUsers",requireRole('admin'), findAllUsersController)
-router.get("/searchUser", requireRole('admin'),searchUserController)
-router.patch("/updateUser",requireRole('admin'), updateUserInfoController)
-router.patch("/updateDevice", requireRole('admin'),updateUserDeviceInfoController);    
-router.post("/addNewParameter",requireRole('admin'), AddParametersByAdminController); 
-router.patch("/updateRole",requireRole('admin'), UpdateRole);  
-router.delete("/removeDeviceId",requireRole('admin'), removeDeviceFromUser); 
-router.get("/fetchDevices",requireRole('admin'), fetchAllDeviceDetails);    
-router.post("/addNewUser",requireRole('admin'), addUser);  
-router.get("/fetchAllParameters",requireRole('admin'), fetchAllParameterDetails);  
-router.patch("/updateParameterInfo",requireRole('admin'), UpdateParametersByAdminController);  
+router.delete("/deleteUser",requireRole(['admin', 'superadmin']), removeUserController )
+router.get("/fetchAllUsers",requireRole(['admin', 'superadmin']), findAllUsersController)
+router.get("/searchUser", requireRole(['admin', 'superadmin']),searchUserController)
+router.patch("/updateUser",requireRole(['admin', 'superadmin']), updateUserInfoController)
+router.patch("/updateDevice", requireRole(['admin', 'superadmin']),updateUserDeviceInfoController);    
+router.post("/addNewParameter",requireRole(['admin', 'superadmin']), AddParametersByAdminController); 
+router.patch("/updateRole",requireRole(['admin', 'superadmin']), UpdateRole);  
+router.delete("/removeDeviceId",requireRole(['admin', 'superadmin']), removeDeviceFromUser); 
+router.get("/fetchDevices",requireRole(['admin', 'superadmin']), fetchAllDeviceDetails);    
+router.post("/addNewUser",requireRole(['admin', 'superadmin']), addUser);  
+router.get("/fetchAllParameters",requireRole(['admin', 'superadmin']), fetchAllParameterDetails);  
+router.patch("/updateParameterInfo",requireRole(['admin', 'superadmin']), UpdateParametersByAdminController);  
 
 
 module.exports = router;

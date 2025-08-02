@@ -134,7 +134,7 @@ const loginController = async (req, res) => {
       const [userDetails] = await Users.findByRole(email, roleId);
 
       const [userRole] = userDetails.map((user) => user.role);
-      if (userRole === "admin") {
+      if (userRole === "admin" || userRole === "superadmin") {
         const [adminResult] = await Users.findByEmail(email);
 
         user = adminResult[0];

@@ -125,11 +125,11 @@ const setTableStructureController = async (req, res) => {
         col.size,
         col.after
       );
-      res.status(StatusCodes.OK).json({
-        success: true,
-        message: "Table structure updated",
-      });
     }
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Table structure updated",
+    });
   } catch (error) {
     console.error("Error updating table structure:", error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -143,7 +143,7 @@ const setTableStructureController = async (req, res) => {
 const deleteTableColumnController = async (req, res) => {
   try {
     const { deviceId } = req.query;
-    const  {columns}  = req.body;
+    const { columns } = req.body;
 
     if (!deviceId) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -185,9 +185,12 @@ const deleteTableColumnController = async (req, res) => {
 
     res.status(StatusCodes.OK).json({
       success: true,
-      message: "Empty columns deleted successfully",
-      deletedColumns: emptyColumns,
-      skippedColumns: nonEmptyColumns,
+     message:
+        nonEmptyColumns.length > 0
+          ? `These columns have data: ${nonEmptyColumns.join(
+              ", "
+            )}`     
+          : "Parameters Deleted Successfully",
     });
   } catch (error) {
     console.error("Error deleting table columns:", error);
@@ -277,6 +280,49 @@ const changeSequenceController = async (req, res) => {
   }
 };
 
+const setMultipleTableStructureController = async (req, res) => {
+  try {
+    const { deviceId } = req.query;
+    const { newDeviceIds } = req.body;
+
+    const emptyDeviceIds = [];
+    const nonEmptyDeviceIds = [];
+
+    for (const device of newDeviceIds) {
+      const checkDeviceId = await SuperAdmin.checkDeviceTable(
+        device
+      );
+      if (checkDeviceId[0][0] === undefined) {
+        emptyDeviceIds.push(device);
+      } else {
+        nonEmptyDeviceIds.push(device);
+      }
+    }
+
+    const setStructure = await SuperAdmin.setMultipleTableStructure(
+      deviceId,
+      emptyDeviceIds
+    );
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message:
+        nonEmptyDeviceIds.length > 0
+          ? `These device IDs already have data: ${nonEmptyDeviceIds.join(
+              ", "
+            )}`
+          : "Multiple Tables Structure Set",
+    });
+  } catch (error) {
+    console.error("Failed to set structure", error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Failed to Fetch Position",
+      error: error.message || error,
+    });
+  }
+};
+
 module.exports = {
   getAllParametersController,
   getTableStructureController,
@@ -284,4 +330,5 @@ module.exports = {
   deleteTableColumnController,
   updateColumnController,
   changeSequenceController,
+  setMultipleTableStructureController,
 };

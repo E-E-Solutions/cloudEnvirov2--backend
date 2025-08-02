@@ -42,14 +42,27 @@ module.exports = class SuperAdmin {
       throw error;
     }
   };
+  static setMultipleTableStructure = async(deviceId, newDeviceIds)=>{
+    let likeTable
+    for (const newDeviceId of newDeviceIds){
+    const dropQuery = db.execute(`DROP TABLE ${newDeviceId}`)
+    likeTable = db.execute(`CREATE TABLE ${newDeviceId} LIKE ${deviceId}`)
+    }
+    return likeTable;
+    
+  }
   static async checkColumns(deviceId, column) {
     try {
-      const sql = `SELECT * FROM \`${deviceId}\` WHERE ${column}`;
+      const sql = `SELECT * FROM \`${deviceId}\` WHERE \`${column}\``;
       return db.execute(sql);
     } catch (error) {
       console.error("Error checking empty columns:", error);
       throw error;
     }
+  }
+
+  static async checkDeviceTable(deviceId){
+    return db.execute(`SELECT * FROM ${deviceId}`)
   }
 static async changePositions(deviceId,col,type,after) {
   try {
@@ -66,7 +79,7 @@ static async changePositions(deviceId,col,type,after) {
     try {
      let result =[]
       for(const col of columns){
-      const sql = `ALTER TABLE \`${deviceId}\` DROP COLUMN ${col}`;
+      const sql = `ALTER TABLE \`${deviceId}\` DROP COLUMN \`${col}\``;
 
       [result] = await db.query(sql);
       }
@@ -94,7 +107,7 @@ static async changePositions(deviceId,col,type,after) {
           ? `(${size})`
           : "";
         if (newColumnName) {
-          return `CHANGE ${columnName} \`${newColumnName}\` ${safeType}${sizePart}`;
+          return `CHANGE \`${columnName}\` \`${newColumnName}\` ${safeType}${sizePart}`;
         }
         return `MODIFY ${columnName} ${safeType}${sizePart}`;
       });

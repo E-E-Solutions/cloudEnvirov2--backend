@@ -3,7 +3,6 @@ const Users = require("../models/User");
 const Device = require("../models/Device");
 const Admin = require("../models/Admin");
 
-
 const {
   getStatus,
   validateRequestBody,
@@ -15,41 +14,38 @@ const Reseller = require("../models/Reseller");
 const GetLatestData = async (req, res) => {
   try {
     let { email, role } = req.user;
-     if(role === "reseller"){
-       email = req.query.email;
-       if (email ) {
-       role = "resellerUser";
+    if (role === "reseller") {
+      email = req.query.email;
+      if (email) {
+        role = "resellerUser";
+      } else {
+        email = req.user.email;
+      }
+    } else if (role === "admin" || role === "superadmin") {
+      email = req.query.email;
+      email = req.query.email;
+      if (email) {
+        role = "resellerUser";
+      } else {
+        email = req.user.email;
+      }
     }
-     else{
-      email= req.user.email;    
-    }
-  }
-    else if(role === "admin"){
-    email = req.query.email;
-     email = req.query.email;
-       if (email ) {
-       role = "resellerUser";
-    }
-     else{
-      email= req.user.email;    
-    }
-  }
-  
+
     const rawDeviceId = req.query.deviceId;
     const deviceId = rawDeviceId.toUpperCase(); // Ensure deviceId is uppercase
-  //  const checkDeviceId = await Admin.checkDatabase(deviceId);
-  //   if (!checkDeviceId) {
-  //     return res
-  //       .status(500)
-  //       .json({ success: false, message: "No Database available for deviceId: " + deviceId });
-  //   }
+    //  const checkDeviceId = await Admin.checkDatabase(deviceId);
+    //   if (!checkDeviceId) {
+    //     return res
+    //       .status(500)
+    //       .json({ success: false, message: "No Database available for deviceId: " + deviceId });
+    //   }
 
     if (role === "resellerUser") {
       const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
-     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
-    const isAnyRevoked = validateDeviceId[0].map(
-      (device) => device.is_active
-    );
+      if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+        const isAnyRevoked = validateDeviceId[0].map(
+          (device) => device.is_active
+        );
         if (isAnyRevoked == 0) {
           return res.status(403).json({
             success: false,
@@ -76,7 +72,11 @@ const GetLatestData = async (req, res) => {
         ? JSON.parse(existingProducts)
         : existingProducts;
 
-    if (!existingProducts.includes(deviceId) && role !== "admin") {
+    if (
+      !existingProducts.includes(deviceId) &&
+      role !== "admin" &&
+      role !== "superadmin"
+    ) {
       return res.status(401).json({
         success: false,
         message: "You are not authorized to get the data of this device.",
@@ -181,10 +181,10 @@ const GetSelectedDeviceStatusAndLocation = async (req, res) => {
 
     if (role === "resellerUser") {
       const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
-     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
-    const isAnyRevoked = validateDeviceId[0].map(
-      (device) => device.is_active
-    );
+      if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+        const isAnyRevoked = validateDeviceId[0].map(
+          (device) => device.is_active
+        );
         if (isAnyRevoked == 0) {
           return res.status(403).json({
             success: false,
@@ -262,20 +262,20 @@ const GetDeviceStatusAndLocation = async (req, res) => {
     // First, get the status for each device
     const result = await productsList.reduce(async (acc, deviceId) => {
       if (role === "resellerUser") {
-      const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
-     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
-    const isAnyRevoked = validateDeviceId[0].map(
-      (device) => device.is_active
-    );
-        if (isAnyRevoked == 0) {
-          return res.status(403).json({
-            success: false,
-            message:
-              "Access to this device's data has been revoked. For help, please reach out to your account administrator.",
-          });
+        const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
+        if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+          const isAnyRevoked = validateDeviceId[0].map(
+            (device) => device.is_active
+          );
+          if (isAnyRevoked == 0) {
+            return res.status(403).json({
+              success: false,
+              message:
+                "Access to this device's data has been revoked. For help, please reach out to your account administrator.",
+            });
+          }
         }
       }
-    }
 
       let obj = await acc;
       const DataObj = new Data(deviceId);
@@ -375,7 +375,10 @@ const GetDataPointsPerYear = async (req, res) => {
 
     let returnableObj = [];
     let products = await Users.getProducts(email);
-    if (!products.includes(deviceId) && (role !== "admin" || role!="superadmin")) {
+    if (
+      !products.includes(deviceId) &&
+      (role !== "admin" || role !== "superadmin")
+    ) {
       return res.status(400).send({
         success: false,
         message: "You are not authorized to access this device",
@@ -464,10 +467,10 @@ const GetLastDataByDuration = async (req, res) => {
     const { deviceId, duration } = req.query;
     if (role === "resellerUser") {
       const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
-     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
-    const isAnyRevoked = validateDeviceId[0].map(
-      (device) => device.is_active
-    );
+      if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+        const isAnyRevoked = validateDeviceId[0].map(
+          (device) => device.is_active
+        );
         if (isAnyRevoked == 0) {
           return res.status(403).json({
             success: false,
@@ -477,7 +480,6 @@ const GetLastDataByDuration = async (req, res) => {
         }
       }
     }
-
 
     let result = await Data.getLastDataByDuration(deviceId, duration);
     // console.log({ data });
@@ -578,10 +580,10 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
 
     if (role === "resellerUser") {
       const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
-     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
-    const isAnyRevoked = validateDeviceId[0].map(
-      (device) => device.is_active
-    );
+      if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+        const isAnyRevoked = validateDeviceId[0].map(
+          (device) => device.is_active
+        );
         if (isAnyRevoked == 0) {
           return res.status(403).json({
             success: false,
@@ -591,7 +593,6 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
         }
       }
     }
-
 
     if (
       !(
@@ -692,11 +693,27 @@ const GetLastAvgDataByCustomDuration = async (req, res) => {
       return data;
     });
     console.log({ customReport });
-      await Users.logUserActivity(role ,email, "Get Data By Custom Duration", "User fetched data by custom duration","success","", { from, to, average, duration,deviceId });
+    await Users.logUserActivity(
+      role,
+      email,
+      "Get Data By Custom Duration",
+      "User fetched data by custom duration",
+      "success",
+      "",
+      { from, to, average, duration, deviceId }
+    );
     res.status(200).json({ success: true, data: customReport, deviceId });
   } catch (er) {
     console.log(er);
-     await Users.logUserActivity(role ,email, "Get Data By Custom Duration", `error: ${er}`,"failure","", { from, to, average, duration,deviceId });
+    await Users.logUserActivity(
+      role,
+      email,
+      "Get Data By Custom Duration",
+      `error: ${er}`,
+      "failure",
+      "",
+      { from, to, average, duration, deviceId }
+    );
     res
       .status(500)
       .send({ success: false, message: "Internal Server Error", detail: er });
@@ -707,7 +724,7 @@ const GetAllParametersData = async (req, res) => {
     const { email, role } = req.user;
 
     // Fetch products based on role
-   
+
     let existingProducts;
     if (role === "resellerUser") {
       existingProducts = await Users.getResellerUserProducts(email);
@@ -728,23 +745,22 @@ const GetAllParametersData = async (req, res) => {
     // existingProducts should be an array now
     // Process each deviceId asynchronously and gather results
     const allDevicesData = await Promise.all(
-      
       existingProducts.map(async (deviceId) => {
-       if (role === "resellerUser") {
-      const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
-     if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
-    const isAnyRevoked = validateDeviceId[0].map(
-      (device) => device.is_active
-    );
-        if (isAnyRevoked == 0) {
-          return res.status(403).json({
-            success: false,
-            message:
-              "Access to this device's data has been revoked. For help, please reach out to your account administrator.",
-          });
+        if (role === "resellerUser") {
+          const validateDeviceId = await Reseller.findRevokedDeviceId(deviceId);
+          if (validateDeviceId[0] && validateDeviceId[0].length > 0) {
+            const isAnyRevoked = validateDeviceId[0].map(
+              (device) => device.is_active
+            );
+            if (isAnyRevoked == 0) {
+              return res.status(403).json({
+                success: false,
+                message:
+                  "Access to this device's data has been revoked. For help, please reach out to your account administrator.",
+              });
+            }
+          }
         }
-      }
-    }
 
         const DataObj = new Data(deviceId);
         const latestDataObj = await DataObj.getLatestData();

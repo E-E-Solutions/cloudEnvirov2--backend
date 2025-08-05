@@ -1,19 +1,20 @@
 const CustomError = require("../errors");
-
-const requireRole = (requiredRole) => {
+function requireRole(roles) {
   return (req, res, next) => {
     const userRole = req.user.role;
-
-    if (!userRole) {
-      throw new CustomError.UnauthorizedError("User role is not assigned");
+    if (Array.isArray(roles)) {
+      console.log("User roles:", userRole, "Required roles:", roles);
+      if (!roles.includes(userRole)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    } else {
+      if (userRole !== roles) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
     }
-
-    if (userRole !== requiredRole) {
-      throw new CustomError.UnauthorizedError("You are not authorized to access this route");
-    }
-
     next();
   };
-};
+}
+
 
 module.exports = requireRole;

@@ -46,7 +46,9 @@ module.exports = class SuperAdmin {
     let likeTable
     for (const newDeviceId of newDeviceIds){
     const dropQuery = db.execute(`DROP TABLE ${newDeviceId}`)
-    likeTable = db.execute(`CREATE TABLE ${newDeviceId} LIKE ${deviceId}`)
+    if(!!dropQuery){
+    likeTable = db.execute(`CREATE TABLE \`${newDeviceId}\` LIKE \`${deviceId}\``)
+    }
     }
     return likeTable;
     

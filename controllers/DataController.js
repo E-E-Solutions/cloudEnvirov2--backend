@@ -23,7 +23,6 @@ const GetLatestData = async (req, res) => {
       }
     } else if (role === "admin" || role === "superadmin") {
       email = req.query.email;
-      email = req.query.email;
       if (email) {
         role = "resellerUser";
       } else {
@@ -377,7 +376,7 @@ const GetDataPointsPerYear = async (req, res) => {
     let products = await Users.getProducts(email);
     if (
       !products.includes(deviceId) &&
-      (role !== "admin" || role !== "superadmin")
+      (role !== "admin" && role !== "superadmin")
     ) {
       return res.status(400).send({
         success: false,

@@ -185,11 +185,9 @@ const deleteTableColumnController = async (req, res) => {
 
     res.status(StatusCodes.OK).json({
       success: true,
-     message:
+      message:
         nonEmptyColumns.length > 0
-          ? `These columns have data: ${nonEmptyColumns.join(
-              ", "
-            )}`     
+          ? `These columns have data: ${nonEmptyColumns.join(", ")}`
           : "Parameters Deleted Successfully",
     });
   } catch (error) {
@@ -284,18 +282,34 @@ const setMultipleTableStructureController = async (req, res) => {
   try {
     const { deviceId } = req.query;
     const { newDeviceIds } = req.body;
-
     const emptyDeviceIds = [];
     const nonEmptyDeviceIds = [];
-
+    const nonExistingDeviceIds = [];
+    if (!deviceId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `Device Id is required `,
+      });
+    }
+    if (!Array.isArray(newDeviceIds) || newDeviceIds.length === 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `Provide at least one device ID to set structure`,
+      });
+    }
     for (const device of newDeviceIds) {
-      const checkDeviceId = await SuperAdmin.checkDeviceTable(
-        device
-      );
-      if (checkDeviceId[0][0] === undefined) {
-        emptyDeviceIds.push(device);
+      const existing = await Admin.checkDevice(device);
+      console.log("ex", existing[0][0]);
+      if (existing[0][0] !== undefined) {
+        const checkDeviceId = await SuperAdmin.checkDeviceTable(device);
+        if (checkDeviceId[0][0] === undefined) {
+          emptyDeviceIds.push(device);
+        } else {
+          nonEmptyDeviceIds.push(device);
+        }
       } else {
-        nonEmptyDeviceIds.push(device);
+        nonExistingDeviceIds.push(device);
+        console.log("nonexisting", nonExistingDeviceIds);
       }
     }
 
@@ -304,20 +318,38 @@ const setMultipleTableStructureController = async (req, res) => {
       emptyDeviceIds
     );
 
+    if (nonEmptyDeviceIds.length > 0 && nonExistingDeviceIds.length > 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `These device IDs already have data: ${nonEmptyDeviceIds.join(
+          ", "
+        )} \n Invalid Device Ids: ${nonExistingDeviceIds.join(", ")}`,
+      });
+    }
+    if (nonEmptyDeviceIds.length > 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `These device IDs already have data: ${nonEmptyDeviceIds.join(
+          ", "
+        )}`,
+      });
+    }
+    if (nonExistingDeviceIds.length > 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `Invalid Device Ids: ${nonExistingDeviceIds.join(", ")}`,
+      });
+    }
+
     res.status(StatusCodes.OK).json({
       success: true,
-      message:
-        nonEmptyDeviceIds.length > 0
-          ? `These device IDs already have data: ${nonEmptyDeviceIds.join(
-              ", "
-            )}`
-          : "Multiple Tables Structure Set",
+      message: "Multiple Tables Structure Set",
     });
   } catch (error) {
     console.error("Failed to set structure", error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
-      message: "Failed to Fetch Position",
+      message: "Failed to Set Structure",
       error: error.message || error,
     });
   }

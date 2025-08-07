@@ -79,9 +79,9 @@ const getTableStructureController = async (req, res) => {
 };
 const setTableStructureController = async (req, res) => {
   try {
-    const { email } = req.user;
-    const { deviceId } = req.query;
-    const columns = req.body;
+    var { email } = req.user;
+    var { deviceId } = req.query;
+    var columns = req.body;
 
     if (!deviceId) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -158,11 +158,13 @@ const setTableStructureController = async (req, res) => {
          Existing columns: ${existingColumns
            .map((c) => c.columnName)
            .join(", ")}`
-        :  `Added new columns: ${newColumns.map((c) => c.columnName).join(", ")}`, 
-       
+        : `Added new columns: ${newColumns
+            .map((c) => c.columnName)
+            .join(", ")}`,
+
       "success",
       "",
-      { deviceId, newColumns }
+      { deviceId, columns }
     );
 
     return res.status(StatusCodes.OK).json({
@@ -174,12 +176,12 @@ const setTableStructureController = async (req, res) => {
     console.error("Error updating table structure:", error);
     await Users.logUserActivity(
       "superadmin",
-      req.user?.email || "unknown",
+      email ,
       "Set Table Structure",
       `Error: ${error.message}`,
       "failure",
       "",
-      { deviceId: req.query.deviceId, error: error.message }
+      { deviceId, columns }
     );
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,

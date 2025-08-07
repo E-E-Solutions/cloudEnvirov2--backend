@@ -79,6 +79,7 @@ const getTableStructureController = async (req, res) => {
 };
 const setTableStructureController = async (req, res) => {
   try {
+    const { email } = req.user;
     const { deviceId } = req.query;
     const columns = req.body;
 
@@ -96,29 +97,48 @@ const setTableStructureController = async (req, res) => {
       });
     }
 
+    // Validate all column inputs
     for (const col of columns) {
       if (!col.columnName || !col.type || !col.size || !col.after) {
         return res.status(StatusCodes.BAD_REQUEST).json({
           success: false,
-          message: "Each column must have columnName, type, and size",
+          message: "Each column must have columnName, type, size, and after",
         });
       }
-      const existingCols = await SuperAdmin.getExisting(deviceId);
-      const existingColNames = existingCols.map((col) => col.Field);
+    }
 
-      // Step 2: Filter out columns that already exist
-      const newColumns = columns.filter(
-        (col) => !existingColNames.includes(col.columnName)
+    // Get existing column names
+    const existingCols = await SuperAdmin.getExisting(deviceId);
+    const existingColNames = existingCols[0].map((col) => col.Field);
+
+    // Filter out columns that already exist
+    const newColumns = columns.filter(
+      (col) => !existingColNames.includes(col.columnName)
+    );
+    const existingColumns = columns.filter((col) =>
+      existingColNames.includes(col.columnName)
+    );
+
+    if (newColumns.length === 0) {
+      await Users.logUserActivity(
+        "superadmin",
+        email,
+        "Set Table Structure",
+        `No new columns to add — all columns already exist`,
+        "failure",
+        "",
+        { deviceId, columns }
       );
 
-      if (newColumns.length === 0) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-          success: false,
-          message: "No new columns to add — all columns already exist",
-          error: error.message || error,
-        });
-      }
-      result = await SuperAdmin.setTableStructure(
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "No new columns to add — all columns already exist",
+      });
+    }
+
+    // Add only new columns
+    for (const col of newColumns) {
+      await SuperAdmin.setTableStructure(
         deviceId,
         col.columnName,
         col.type,
@@ -126,13 +146,42 @@ const setTableStructureController = async (req, res) => {
         col.after
       );
     }
-    res.status(StatusCodes.OK).json({
+
+    await Users.logUserActivity(
+      "superadmin",
+      email,
+      "Set Table Structure",
+      newColumns.length > 0 && existingColumns.length > 0
+        ? `Added new columns: ${newColumns
+            .map((c) => c.columnName)
+            .join(", ")}\n
+         Existing columns: ${existingColumns
+           .map((c) => c.columnName)
+           .join(", ")}`
+        :  `Added new columns: ${newColumns.map((c) => c.columnName).join(", ")}`, 
+       
+      "success",
+      "",
+      { deviceId, newColumns }
+    );
+
+    return res.status(StatusCodes.OK).json({
       success: true,
-      message: "Table structure updated",
+      message: "Table structure updated successfully",
+      addedColumns: newColumns,
     });
   } catch (error) {
     console.error("Error updating table structure:", error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+    await Users.logUserActivity(
+      "superadmin",
+      req.user?.email || "unknown",
+      "Set Table Structure",
+      `Error: ${error.message}`,
+      "failure",
+      "",
+      { deviceId: req.query.deviceId, error: error.message }
+    );
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to update table structure",
       error: error.message || error,
@@ -142,8 +191,9 @@ const setTableStructureController = async (req, res) => {
 
 const deleteTableColumnController = async (req, res) => {
   try {
-    const { deviceId } = req.query;
-    const { columns } = req.body;
+    var { email } = req.user;
+    var { deviceId } = req.query;
+    var { columns } = req.body;
 
     if (!deviceId) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -173,6 +223,15 @@ const deleteTableColumnController = async (req, res) => {
     }
 
     if (emptyColumns.length === 0) {
+      await Users.logUserActivity(
+        "superadmin",
+        email,
+        `Delete Table Column`,
+        `No empty columns found to delete`,
+        "failure",
+        "",
+        { deviceId, columns }
+      );
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: "No empty columns found to delete",
@@ -182,6 +241,17 @@ const deleteTableColumnController = async (req, res) => {
 
     // ✅ Only delete the empty ones
     const result = await SuperAdmin.DeleteTableColumns(deviceId, emptyColumns);
+    await Users.logUserActivity(
+      "superadmin",
+      email,
+      "Delete Table Column",
+      nonEmptyColumns.length > 0
+        ? `These columns have data: ${nonEmptyColumns.join(", ")}`
+        : `Super Admin deleted columns of ${deviceId}`,
+      "success",
+      "",
+      { deviceId, columns }
+    );
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -192,6 +262,15 @@ const deleteTableColumnController = async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting table columns:", error);
+    await Users.logUserActivity(
+      "superadmin",
+      email,
+      "Delete Table Column",
+      `error: ${error.message}`,
+      "failure",
+      "",
+      { deviceId, columns }
+    );
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to delete table columns",
@@ -202,9 +281,9 @@ const deleteTableColumnController = async (req, res) => {
 
 const updateColumnController = async (req, res) => {
   try {
-    const { deviceId } = req.query;
-    const columns = req.body; // expecting array
-
+    var { email } = req.user;
+    var { deviceId } = req.query;
+    var columns = req.body; // expecting array
     if (!deviceId || !Array.isArray(columns) || columns.length === 0) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -213,13 +292,30 @@ const updateColumnController = async (req, res) => {
     }
 
     const result = await SuperAdmin.alterColumns(deviceId, columns);
-
+    await Users.logUserActivity(
+      "superadmin",
+      email,
+      "Update Table Column",
+      `Super Admin updated columns of ${deviceId} `,
+      "success",
+      "",
+      { deviceId, columns }
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Columns updated successfully",
     });
   } catch (error) {
     console.error("Error updating column size:", error);
+    await Users.logUserActivity(
+      "superadmin",
+      email,
+      "Update Table Column",
+      `error: ${error.message}`,
+      "failure",
+      "",
+      { deviceId, columns }
+    );
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to update column sizes",
@@ -230,8 +326,9 @@ const updateColumnController = async (req, res) => {
 
 const changeSequenceController = async (req, res) => {
   try {
-    const { deviceId } = req.query;
-    const columns = req.body;
+    var { email } = req.user;
+    var { deviceId } = req.query;
+    var columns = req.body;
 
     for (const col of columns) {
       if (!col.columnName || !col.id) {
@@ -264,12 +361,31 @@ const changeSequenceController = async (req, res) => {
         );
       }
     }
+    await Users.logUserActivity(
+      "superadmin",
+      email,
+      "Change Column's Sequence",
+      `Super Admin change sequence of columns of ${deviceId} `,
+      "success",
+      "",
+      { deviceId, columns }
+    );
+
     res.status(StatusCodes.OK).json({
       success: true,
-      message: "Sequence Chnaged successfully",
+      message: "Sequence Changed successfully",
     });
   } catch (error) {
     console.error("Failed to Fetch Position", error);
+    await Users.logUserActivity(
+      "superadmin",
+      email,
+      "Change Columns' Sequence",
+      `error: ${error.message}`,
+      "failure",
+      "",
+      { deviceId, columns }
+    );
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to Fetch Position",
@@ -280,8 +396,9 @@ const changeSequenceController = async (req, res) => {
 
 const setMultipleTableStructureController = async (req, res) => {
   try {
-    const { deviceId } = req.query;
-    const { newDeviceIds } = req.body;
+    var { email } = req.user;
+    var { deviceId } = req.query;
+    var { newDeviceIds } = req.body;
     const emptyDeviceIds = [];
     const nonEmptyDeviceIds = [];
     const nonExistingDeviceIds = [];
@@ -318,7 +435,22 @@ const setMultipleTableStructureController = async (req, res) => {
       emptyDeviceIds
     );
 
-    if (nonEmptyDeviceIds.length > 0 && nonExistingDeviceIds.length > 0) {
+    if (
+      nonEmptyDeviceIds.length > 0 &&
+      nonExistingDeviceIds.length > 0 &&
+      emptyDeviceIds.length === 0
+    ) {
+      await Users.logUserActivity(
+        "superadmin",
+        email,
+        "Set Multiple Table Structure",
+        `These device IDs already have data: ${nonEmptyDeviceIds.join(
+          ", "
+        )} \n Invalid Device Ids: ${nonExistingDeviceIds.join(", ")}`,
+        "failure",
+        "",
+        { deviceId, newDeviceIds }
+      );
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: `These device IDs already have data: ${nonEmptyDeviceIds.join(
@@ -326,7 +458,16 @@ const setMultipleTableStructureController = async (req, res) => {
         )} \n Invalid Device Ids: ${nonExistingDeviceIds.join(", ")}`,
       });
     }
-    if (nonEmptyDeviceIds.length > 0) {
+    if (nonEmptyDeviceIds.length > 0 && emptyDeviceIds.length === 0) {
+      await Users.logUserActivity(
+        "superadmin",
+        email,
+        "Set Multiple Table Structure",
+        `These device IDs already have data: ${nonEmptyDeviceIds.join(", ")}`,
+        "failure",
+        "",
+        { deviceId, newDeviceIds }
+      );
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: `These device IDs already have data: ${nonEmptyDeviceIds.join(
@@ -334,19 +475,75 @@ const setMultipleTableStructureController = async (req, res) => {
         )}`,
       });
     }
-    if (nonExistingDeviceIds.length > 0) {
+    if (nonExistingDeviceIds.length > 0 && emptyDeviceIds.length === 0) {
+      await Users.logUserActivity(
+        "superadmin",
+        email,
+        "Set Multiple Table Structure",
+        `Invalid Device Ids: ${nonExistingDeviceIds.join(", ")}`,
+        "failure",
+        "",
+        { deviceId, newDeviceIds }
+      );
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: `Invalid Device Ids: ${nonExistingDeviceIds.join(", ")}`,
       });
     }
+    await Users.logUserActivity(
+      "superadmin",
+      email,
+      "Set Multiple Table Structure",
+      nonExistingDeviceIds.length > 0 &&
+        nonEmptyDeviceIds.length > 0 &&
+        emptyDeviceIds.length > 0
+        ? `Invalid Device Ids: ${nonExistingDeviceIds.join(
+            ", "
+          )} \n These device Ids already have data: ${nonEmptyDeviceIds.join(
+            ", "
+          )} \n Updated structure of device Ids: ${emptyDeviceIds.join(", ")}`
+        : nonEmptyDeviceIds.length > 0 && emptyDeviceIds.length > 0
+        ? `These device Ids already have data: ${nonEmptyDeviceIds.join(", ")}
+        \n Updated structure of device Ids: ${emptyDeviceIds.join(", ")}`
+        : nonExistingDeviceIds.length > 0 && emptyDeviceIds.length > 0
+        ? `Invalid Device Ids: ${nonExistingDeviceIds.join(", ")}
+        \n Updated structure of device Ids: ${emptyDeviceIds.join(", ")}`
+        : `Super Admin set structures of tables: ${newDeviceIds} like ${deviceId} `,
 
+      "success",
+      "",
+      { deviceId, newDeviceIds }
+    );
     res.status(StatusCodes.OK).json({
       success: true,
-      message: "Multiple Tables Structure Set",
+      message:
+        nonExistingDeviceIds.length > 0 &&
+        nonEmptyDeviceIds.length > 0 &&
+        emptyDeviceIds.length > 0
+          ? ` Invalid Device Ids: ${nonExistingDeviceIds.join(
+              ", "
+            )} \n These device Ids already have data: ${nonEmptyDeviceIds.join(
+              ", "
+            )} \n Updated structure of device Ids: ${emptyDeviceIds.join(", ")}`
+          : nonEmptyDeviceIds.length > 0 && emptyDeviceIds.length > 0
+          ? `These device Ids already have data: ${nonEmptyDeviceIds.join(", ")}
+        \n Updated structure of device Ids: ${emptyDeviceIds.join(", ")}`
+          : nonExistingDeviceIds.length > 0 && emptyDeviceIds.length > 0
+          ? `Invalid Device Ids: ${nonExistingDeviceIds.join(", ")}
+        \n Updated structure of device Ids: ${emptyDeviceIds.join(", ")}`
+          : `Super Admin set structures of tables: ${newDeviceIds} like ${deviceId} `,
     });
   } catch (error) {
     console.error("Failed to set structure", error);
+    await Users.logUserActivity(
+      "superadmin",
+      email,
+      "Set Multiple Table Structure",
+      `error: ${error.message}`,
+      "failure",
+      "",
+      { deviceId, newDeviceIds }
+    );
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Failed to Set Structure",

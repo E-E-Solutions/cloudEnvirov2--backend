@@ -8,7 +8,21 @@ const { validateRequestBody, validateEmail } = require("../utils/common");
 const https = require("https"); // Use https for secure requests
 
 var client = new postmark.ServerClient("d7c1a2c7-ed9c-41ef-8dfa-0462caebdb92");
+const {
+  SESClient,
+  SendEmailCommand,
+} = require("@aws-sdk/client-ses");
+require("dotenv").config();
+const fs = require("fs");
+const path = require("path");
 
+const sesClient = new SESClient({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
 // local imports
 const Users = require("../models/User");
 const Admin = require("../models/Admin");
@@ -1146,23 +1160,50 @@ const sendOtpController = async (req, res) => {
         .json({ success: false, message: "Something went wrong!" });
     }
 
-    client.sendEmail({
-      From: "no-reply@enggenv.com",
-      To: email,
-      Subject: "Cloud Enviro email verification Code",
-      HtmlBody: htmlTemplate(
-        "Engineering and Environmental Solutions Pvt Ltd",
-        "Cloud Enviro",
-        "https://app.enggenv.com/public/elementRed.svg",
-        response.otp
-      ),
-      TextBody: "",
-      MessageStream: "cloud-enviro-v2",
-    });
+    // client.sendEmail({
+    //   From: "no-reply@enggenv.com",
+    //   To: email,
+    //   Subject: "Cloud Enviro email verification Code",
+    //   HtmlBody: htmlTemplate(
+    //     "Engineering and Environmental Solutions Pvt Ltd",
+    //     "Cloud Enviro",
+    //     "https://app.enggenv.com/public/elementRed.svg",
+    //     response.otp
+    //   ),
+    //   TextBody: "",
+    //   MessageStream: "cloud-enviro-v2",
+    // });
+     const params = {
+    Source: "E&E Solutions <noreply@enggenv.com>",
+    Destination: {
+      ToAddresses: [email],
+    },
+    Message: {
+      Subject: {Data: "Cloud Enviro email verification Code"},
+  
+      Body: {
+      //   Text: {
+      //     Data:
+        // },
+       
+        Html: {
+        Data: htmlTemplate(
+          "Engineering and Environmental Solutions Pvt Ltd",
+          "Cloud Enviro",
+          "https://app.enggenv.com/public/elementRed.svg",
+          response.otp
+        ),
+        Charset: "UTF-8",
+      },
+      },
+    },
+  };
+      const command = new SendEmailCommand(params);
+    const data = await sesClient.send(command);
 
     res
       .status(StatusCodes.CREATED)
-      .json({ success: true, message: "OTP sent successfully" });
+      .json({ success: true, message: `OTP sent successfully to ${email}` });
   } catch (error) {
     console.log(error);
     throw new CustomError.BadRequestError(error);

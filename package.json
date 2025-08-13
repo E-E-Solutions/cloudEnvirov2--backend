@@ -3,8 +3,6 @@
    "@aws-sdk/client-ses": "^3.835.0",
     "dotenv": "^16.5.0",
     "express-async-errors": "^3.1.1",
-    "mongodb": "^6.17.0",
-    "nodemailer": "^7.0.3",
      "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",

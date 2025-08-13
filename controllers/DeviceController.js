@@ -534,9 +534,9 @@ const DeleteDeviceController = async (req, res) => {
       const userEmails = resellerUsersResult.map((u) => u.email);
 
       // Update all associated reseller users
-      for (const userEmail of userEmails) {
-        await Users.addResellerUserProduct(userEmail, remainingDevices);
-      }
+      // for (const userEmail of userEmails) {
+      //   await Users.addResellerUserProduct(userEmail, remainingDevices);
+      // }
 
       await Users.addResellerProduct(email, remainingDevices);
       result = await Users.addProduct(email, remainingDevices);

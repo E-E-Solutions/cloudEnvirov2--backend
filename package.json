@@ -1,6 +1,6 @@
 {
   "dependencies": {
-   "@aws-sdk/client-ses": "^3.835.0",
+   "@aws-sdk/client-ses": "3.150.0",
     "dotenv": "^16.5.0",
     "express-async-errors": "^3.1.1",
      "bcryptjs": "^2.4.3",
